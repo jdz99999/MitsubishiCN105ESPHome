@@ -76,8 +76,8 @@ void CN105Climate::set_airflow_control_select(
     this->airflow_control_select_ = airflow_control_select;
 
     this->airflow_control_select_->traits.set_options({
-        AIRFLOW_CONTROL_MAP[0], AIRFLOW_CONTROL_MAP[1], AIRFLOW_CONTROL_MAP[2]
-        });
+    AIRFLOW_CONTROL_MAP[0], AIRFLOW_CONTROL_MAP[1], AIRFLOW_CONTROL_MAP[2], AIRFLOW_CONTROL_MAP[3]
+    });;
 
     this->airflow_control_select_->setCallbackFunction([this](const char* setting) {
         if (strcmp(this->currentSettings.wideVane, lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, 8, 0x80 & 0x0F)) == 0) {

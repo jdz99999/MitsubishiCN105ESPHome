@@ -78,8 +78,14 @@ static const uint8_t FAN[6] = { 0x00,  0x01,   0x02, 0x03, 0x05, 0x06 };
 static const char* FAN_MAP[6] = { "AUTO", "QUIET", "1", "2", "3", "4" };
 static const uint8_t VANE[7] = { 0x00,  0x01, 0x02, 0x03, 0x04, 0x05, 0x07 };
 static const char* VANE_MAP[7] = { "AUTO", "↑↑", "↑", "—", "↓", "↓↓", "SWING" };
-static const uint8_t WIDEVANE[8] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x08, 0x0c, 0x00 };
-static const char* WIDEVANE_MAP[8] = { "←←", "←", "|", "→", "→→", "←→", "SWING", "AIRFLOW CONTROL" };
+// JP-domestic Z-series (e.g. MSZ-ZW9025S) extends the wide-vane low nibble
+// with values 0x06, 0x07, 0x09:
+//   0x06 — additional left-most position (one step past 0x05 →→ in the JP encoding)
+//   0x07 — split pattern: 4 outlets active on one side, 2 empty on the other
+//   0x09 — symmetric split with a gap in the middle (2-2-2 outlet pattern)
+// Previously these generated "Unknown wideVane byte 0x06/0x07/0x09" warnings.
+static const uint8_t WIDEVANE[11]   = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,    0x07,       0x08, 0x09,         0x0c,    0x00 };
+static const char* WIDEVANE_MAP[11] = { "←←", "←",  "|",  "→",  "→→", "←−JP", "SPLIT_4-2", "←→", "SPLIT_2-2-2", "SWING", "AIRFLOW CONTROL" };
 static const uint8_t ROOM_TEMP[32] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
                                   0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f };
 static const int ROOM_TEMP_MAP[32] = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
@@ -87,8 +93,11 @@ static const int ROOM_TEMP_MAP[32] = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 2
 static const uint8_t TIMER_MODE[4] = { 0x00,  0x01,  0x02, 0x03 };
 static const char* TIMER_MODE_MAP[4] = { "NONE", "OFF", "ON", "BOTH" };
 
-static const uint8_t AIRFLOW_CONTROL[3] = { 0x00, 0x01, 0x02 };
-static const char* AIRFLOW_CONTROL_MAP[3] = { "EVEN", "INDIRECT", "DIRECT" };
+// 0x03 = MURANASHI (むらなし / "even-spread") added for MSZ-ZW (Japanese
+// domestic 2025 Z-series). The remote's "むらなし" button toggles this value;
+// previously generated "Unknown airflow_control byte 0x03 — keeping previous value".
+static const uint8_t AIRFLOW_CONTROL[4] = { 0x00, 0x01, 0x02, 0x03 };
+static const char* AIRFLOW_CONTROL_MAP[4] = { "EVEN", "INDIRECT", "DIRECT", "MURANASHI" };
 
 static const uint8_t STAGE[7] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
 static const char* STAGE_MAP[7] = { "IDLE", "LOW", "GENTLE", "MEDIUM", "MODERATE", "HIGH", "DIFFUSE" };

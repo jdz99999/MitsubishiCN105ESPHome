@@ -709,7 +709,7 @@ void CN105Climate::setWideVaneSetting(const char* setting) {
 }
 
 void CN105Climate::setAirflowControlSetting(const char* setting) {
-    int index = lookupByteMapIndex(AIRFLOW_CONTROL_MAP, 3, setting);
+    int index = lookupByteMapIndex(AIRFLOW_CONTROL_MAP, 4, setting);
     if (index > -1) {
         wantedRunStates.airflow_control = AIRFLOW_CONTROL_MAP[index];
     } else {

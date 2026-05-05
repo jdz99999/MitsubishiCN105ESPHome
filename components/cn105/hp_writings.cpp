@@ -561,7 +561,7 @@ void CN105Climate::sendWantedRunStates() {
     packet[5] = 0x08;
     if (this->wantedRunStates.airflow_control != nullptr) {
         ESP_LOGD(TAG, "airflow control -> %s", getAirflowControlSetting());
-        packet[11] = AIRFLOW_CONTROL[lookupByteMapIndex(AIRFLOW_CONTROL_MAP, 3, getAirflowControlSetting(), "run state (write)")];
+        packet[11] = AIRFLOW_CONTROL[lookupByteMapIndex(AIRFLOW_CONTROL_MAP, 4, getAirflowControlSetting(), "run state (write)")];
         packet[6] += RUN_STATE_PACKET_1[4];
     }
     if (this->wantedRunStates.air_purifier > -1) {

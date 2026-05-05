@@ -210,7 +210,7 @@ void CN105Climate::getSettingsFromResponsePacket() {
     // --- START OF MODIFIED SECTION - Reverted widevane section back to more or less original state
     if ((data[10] != 0) && (this->traits_.supports_swing_mode(climate::CLIMATE_SWING_HORIZONTAL))) {    // wideVane is not always supported
         uint8_t wideVaneByte = data[10] & 0x0F;
-        auto wideVane_opt = cn105_protocol::lookup_value_opt(WIDEVANE_MAP, WIDEVANE, 8, wideVaneByte);
+        auto wideVane_opt = cn105_protocol::lookup_value_opt(WIDEVANE_MAP, WIDEVANE, 11, wideVaneByte);
         if (wideVane_opt) {
             receivedSettings.wideVane = *wideVane_opt;
         } else {
@@ -232,7 +232,7 @@ void CN105Climate::getSettingsFromResponsePacket() {
     if (this->airflow_control_select_ != nullptr) {
         if (data[10] == 0x80) {
             if (receivedSettings.iSee) {
-                auto airflow_opt = cn105_protocol::lookup_value_opt(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 3, data[14]);
+                auto airflow_opt = cn105_protocol::lookup_value_opt(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, data[14]);
                 if (airflow_opt) {
                     receivedRunStates.airflow_control = *airflow_opt;
                 } else {

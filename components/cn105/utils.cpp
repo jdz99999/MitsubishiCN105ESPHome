@@ -167,25 +167,27 @@ void CN105Climate::updateTargetTemperaturesFromSettings(float temperature) {
 
 void CN105Climate::debugSettings(const char* settingName, wantedHeatpumpSettings& settings) {
 #ifdef USE_ESP32
-    ESP_LOGD(LOG_ACTION_EVT_TAG, "[%s]-> [power: %s, target °C: %.1f, mode: %s, fan: %s, vane: %s, wvane: %s, hasChanged ? -> %s, hasBeenSent ? -> %s]",
+    ESP_LOGD(LOG_ACTION_EVT_TAG, "[%s]-> [power: %s, target °C: %.1f, mode: %s, fan: %s, vane: %s, left_vane: %s, wvane: %s, hasChanged ? -> %s, hasBeenSent ? -> %s]",
         getIfNotNull(settingName, "unnamed"),
         getIfNotNull(settings.power, "-"),
         settings.temperature,
         getIfNotNull(settings.mode, "-"),
         getIfNotNull(settings.fan, "-"),
         getIfNotNull(settings.vane, "-"),
+        getIfNotNull(settings.left_vane, "-"),
         getIfNotNull(settings.wideVane, "-"),
         settings.hasChanged ? "YES" : " NO",
         settings.hasBeenSent ? "YES" : " NO"
     );
 #else
-    ESP_LOGD(LOG_ACTION_EVT_TAG, "[%-*s]-> [power: %-*s, target °C: %.1f, mode: %-*s, fan: %-*s, vane: %-*s, wvane: %-*s, hasChanged ? -> %s, hasBeenSent ? -> %s]",
+    ESP_LOGD(LOG_ACTION_EVT_TAG, "[%-*s]-> [power: %-*s, target °C: %.1f, mode: %-*s, fan: %-*s, vane: %-*s, left_vane: %-*s, wvane: %-*s, hasChanged ? -> %s, hasBeenSent ? -> %s]",
         15, getIfNotNull(settingName, "unnamed"),
         3, getIfNotNull(settings.power, "-"),
         settings.temperature,
         6, getIfNotNull(settings.mode, "-"),
         6, getIfNotNull(settings.fan, "-"),
         6, getIfNotNull(settings.vane, "-"),
+        6, getIfNotNull(settings.left_vane, "-"),
         6, getIfNotNull(settings.wideVane, "-"),
         settings.hasChanged ? "YES" : " NO",
         settings.hasBeenSent ? "YES" : " NO"
@@ -301,23 +303,25 @@ void CN105Climate::debugClimate(const char* settingName) {
 
 void CN105Climate::debugSettings(const char* settingName, heatpumpSettings& settings) {
 #ifdef USE_ESP32
-    ESP_LOGD(LOG_SETTINGS_TAG, "[%s]-> [power: %s, target °C: %.1f, mode: %s, fan: %s, vane: %s, wvane: %s]",
+    ESP_LOGD(LOG_SETTINGS_TAG, "[%s]-> [power: %s, target °C: %.1f, mode: %s, fan: %s, vane: %s, left_vane: %s, wvane: %s]",
         getIfNotNull(settingName, "unnamed"),
         getIfNotNull(settings.power, "-"),
         settings.temperature,
         getIfNotNull(settings.mode, "-"),
         getIfNotNull(settings.fan, "-"),
         getIfNotNull(settings.vane, "-"),
+        getIfNotNull(settings.left_vane, "-"),
         getIfNotNull(settings.wideVane, "-")
     );
 #else
-    ESP_LOGD(LOG_SETTINGS_TAG, "[%-*s]-> [power: %-*s, target °C: %.1f, mode: %-*s, fan: %-*s, vane: %-*s, wvane: %-*s]",
+    ESP_LOGD(LOG_SETTINGS_TAG, "[%-*s]-> [power: %-*s, target °C: %.1f, mode: %-*s, fan: %-*s, vane: %-*s, left_vane: %-*s, wvane: %-*s]",
         15, getIfNotNull(settingName, "unnamed"),
         3, getIfNotNull(settings.power, "-"),
         settings.temperature,
         6, getIfNotNull(settings.mode, "-"),
         6, getIfNotNull(settings.fan, "-"),
         6, getIfNotNull(settings.vane, "-"),
+        6, getIfNotNull(settings.left_vane, "-"),
         6, getIfNotNull(settings.wideVane, "-")
     );
 #endif

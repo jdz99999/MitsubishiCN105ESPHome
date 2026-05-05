@@ -78,6 +78,8 @@ static const uint8_t FAN[6] = { 0x00,  0x01,   0x02, 0x03, 0x05, 0x06 };
 static const char* FAN_MAP[6] = { "AUTO", "QUIET", "1", "2", "3", "4" };
 static const uint8_t VANE[7] = { 0x00,  0x01, 0x02, 0x03, 0x04, 0x05, 0x07 };
 static const char* VANE_MAP[7] = { "AUTO", "↑↑", "↑", "—", "↓", "↓↓", "SWING" };
+static const uint8_t LEFT_VANE[7] = { 0x00,  0x01, 0x02, 0x03, 0x04, 0x05, 0x07 };
+static const char* LEFT_VANE_MAP[7] = { "AUTO", "↑↑", "↑", "—", "↓", "↓↓", "SWING" };
 // JP-domestic Z-series (e.g. MSZ-ZW9025S) extends the wide-vane low nibble
 // with values 0x06, 0x07, 0x09:
 //   0x06 — additional left-most position (one step past 0x05 →→ in the JP encoding)
@@ -151,6 +153,7 @@ struct heatpumpSettings {
     float dual_high_target = -100.0f;
     const char* fan = nullptr;
     const char* vane = nullptr;
+    const char* left_vane = nullptr;
     const char* wideVane = nullptr;
     bool iSee = false;
     bool connected = false;
@@ -166,6 +169,7 @@ struct heatpumpSettings {
         dual_high_target = -100.0f;
         fan = nullptr;
         vane = nullptr;
+        left_vane = nullptr;
         wideVane = nullptr;
     }
 
@@ -178,6 +182,7 @@ struct heatpumpSettings {
             temperature == other.temperature &&
             fan == other.fan &&
             vane == other.vane &&
+            left_vane == other.left_vane &&
             wideVane == other.wideVane;
     }
 

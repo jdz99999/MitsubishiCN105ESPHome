@@ -154,6 +154,14 @@ const char* CN105Climate::getVaneSetting() {
     }
 }
 
+const char* CN105Climate::getLeftVaneSetting() {
+    if (this->wantedSettings.left_vane) {
+        return this->wantedSettings.left_vane;
+    } else {
+        return this->currentSettings.left_vane;
+    }
+}
+
 const char* CN105Climate::getWideVaneSetting() {
     if (this->wantedSettings.wideVane) {
         if (strcmp(this->wantedSettings.wideVane, lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, 8, 0x80 & 0x0F)) == 0 && !this->currentSettings.iSee) {
@@ -253,6 +261,21 @@ void CN105Climate::createPacket(uint8_t* packet) {
         if (idx >= 0) { packet[12] = VANE[idx]; packet[6] += CONTROL_PACKET_1[4]; } else { ESP_LOGW(TAG, "Ignoring invalid vane setting while building packet"); }
     }
 
+    if (this->wantedSettings.left_vane != nullptr) {
+        ESP_LOGD(TAG, "heatpump left vane -> %s", getLeftVaneSetting());
+        int idx = lookupByteMapIndex(LEFT_VANE_MAP, 7, getLeftVaneSetting(), "left_vane (write)");
+        if (idx >= 0) {
+            packet[20] = LEFT_VANE[idx];
+            packet[6] += CONTROL_PACKET_1[4];
+            if (this->wantedSettings.vane == nullptr && this->currentSettings.vane != nullptr) {
+                int right_idx = lookupByteMapIndex(VANE_MAP, 7, getVaneSetting(), "vane preserve (write)");
+                if (right_idx >= 0) {
+                    packet[12] = VANE[right_idx];
+                }
+            }
+        } else { ESP_LOGW(TAG, "Ignoring invalid left_vane setting while building packet"); }
+    }
+
     if (this->wantedSettings.wideVane != nullptr) {
         ESP_LOGD(TAG, "heatpump widevane -> %s", getWideVaneSetting());
         int idx = lookupByteMapIndex(WIDEVANE_MAP, 8, getWideVaneSetting(), "wideVane (write)");
@@ -306,9 +329,12 @@ void CN105Climate::publishWantedSettingsStateToHA() {
     }
 
 
-    if ((this->wantedSettings.vane != nullptr) || (this->wantedSettings.wideVane != nullptr)) {
+    if ((this->wantedSettings.vane != nullptr) || (this->wantedSettings.left_vane != nullptr) || (this->wantedSettings.wideVane != nullptr)) {
         if (this->wantedSettings.vane == nullptr) { // to prevent a nullpointer error
             this->wantedSettings.vane = this->currentSettings.vane;
+        }
+        if (this->wantedSettings.left_vane == nullptr) { // to prevent a nullpointer error
+            this->wantedSettings.left_vane = this->currentSettings.left_vane;
         }
         if (this->wantedSettings.wideVane == nullptr) { // to prevent a nullpointer error
             this->wantedSettings.wideVane = this->currentSettings.wideVane;

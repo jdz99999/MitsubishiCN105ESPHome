@@ -35,6 +35,27 @@ void CN105Climate::set_vertical_vane_select(
 
 }
 
+void CN105Climate::set_left_vane_select(
+    LeftVaneOrientationSelect* left_vane_select) {
+
+    this->left_vane_select_ = left_vane_select;
+
+    this->left_vane_select_->traits.set_options({
+        LEFT_VANE_MAP[0], LEFT_VANE_MAP[1], LEFT_VANE_MAP[2], LEFT_VANE_MAP[3], LEFT_VANE_MAP[4], LEFT_VANE_MAP[5], LEFT_VANE_MAP[6]
+        });
+
+    this->left_vane_select_->setCallbackFunction([this](const char* setting) {
+
+        ESP_LOGD("EVT", "left_vane.control() -> Demande un chgt de rÃ©glage de la vane gauche: %s", setting);
+
+        this->setLeftVaneSetting(setting);
+        this->wantedSettings.hasChanged = true;
+        this->wantedSettings.hasBeenSent = false;
+        this->wantedSettings.lastChange = CUSTOM_MILLIS;
+        });
+
+}
+
 void CN105Climate::set_horizontal_vane_select(
     VaneOrientationSelect* horizontal_vane_select, const std::vector<std::string>& options) {
     this->horizontal_vane_select_ = horizontal_vane_select;

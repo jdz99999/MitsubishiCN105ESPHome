@@ -207,6 +207,15 @@ void CN105Climate::getSettingsFromResponsePacket() {
     }
     ESP_LOGD("Decoder", "[Vane: %s]", receivedSettings.vane);
 
+    auto left_vane_opt = cn105_protocol::lookup_value_opt(LEFT_VANE_MAP, LEFT_VANE, 7, data[15]);
+    if (left_vane_opt) {
+        receivedSettings.left_vane = *left_vane_opt;
+    } else {
+        ESP_LOGW("Decoder", "Unknown left_vane byte 0x%02X — keeping previous value", data[15]);
+        receivedSettings.left_vane = this->currentSettings.left_vane;
+    }
+    ESP_LOGD("Decoder", "[Left Vane: %s]", receivedSettings.left_vane);
+
     // --- START OF MODIFIED SECTION - Reverted widevane section back to more or less original state
     if ((data[10] != 0) && (this->traits_.supports_swing_mode(climate::CLIMATE_SWING_HORIZONTAL))) {    // wideVane is not always supported
         uint8_t wideVaneByte = data[10] & 0x0F;
@@ -563,6 +572,10 @@ void CN105Climate::publishStateToHA(heatpumpSettings& settings) {
         checkVaneSettings(settings);
     }
 
+    if (this->wantedSettings.left_vane == nullptr) { // to prevent overwriting a user demand
+        currentSettings.left_vane = settings.left_vane;
+    }
+
     if (this->wantedSettings.wideVane == nullptr) { // to prevent overwriting a user demand
         checkWideVaneSettings(settings);
     }
@@ -682,6 +695,12 @@ void CN105Climate::updateExtraSelectComponents(heatpumpSettings& settings) {
         if (this->hasChanged(this->vertical_vane_select_->current_option(), settings.vane, "select vane")) {
             ESP_LOGI(TAG, "vane setting (extra select component) changed");
             this->vertical_vane_select_->publish_state(settings.vane);
+        }
+    }
+    if (this->left_vane_select_ != nullptr) {
+        if (this->hasChanged(this->left_vane_select_->current_option(), settings.left_vane, "select left vane")) {
+            ESP_LOGI(TAG, "left vane setting (extra select component) changed");
+            this->left_vane_select_->publish_state(settings.left_vane);
         }
     }
     if (this->horizontal_vane_select_ != nullptr) {

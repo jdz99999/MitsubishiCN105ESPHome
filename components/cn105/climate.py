@@ -81,6 +81,7 @@ VANE_TYPES = {
 }
 CONF_HORIZONTAL_SWING_SELECT = "horizontal_vane_select"
 CONF_VERTICAL_SWING_SELECT = "vertical_vane_select"
+CONF_LEFT_VANE_SELECT = "left_vane_select"
 CONF_COMPRESSOR_FREQUENCY_SENSOR = "compressor_frequency_sensor"
 CONF_INPUT_POWER_SENSOR = "input_power_sensor"
 CONF_KWH_SENSOR = "kwh_sensor"
@@ -142,6 +143,9 @@ CONF_INSTALLER_MODE = "installer_mode"
 # DÃÂÃÂ©finitions des classes C++ (identiques ÃÂÃÂ  votre version)
 VaneOrientationSelect = cg.global_ns.class_(
     "VaneOrientationSelect", select.Select, cg.Component
+)
+LeftVaneOrientationSelect = cg.global_ns.class_(
+    "LeftVaneOrientationSelect", select.Select, cg.Component
 )
 CompressorFrequencySensor = cg.global_ns.class_(
     "CompressorFrequencySensor", sensor.Sensor, cg.Component
@@ -231,6 +235,9 @@ def get_uart_port_index(core_config, target_uart_id_str):
 # SchÃÂÃÂ©mas pour les entitÃÂÃÂ©s optionnelles (identiques ÃÂÃÂ  votre version)
 SELECT_SCHEMA = select.select_schema(VaneOrientationSelect).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(VaneOrientationSelect)}
+)
+LEFT_VANE_SELECT_SCHEMA = select.select_schema(LeftVaneOrientationSelect).extend(
+    {cv.GenerateID(CONF_ID): cv.declare_id(LeftVaneOrientationSelect)}
 )
 COMPRESSOR_FREQUENCY_SENSOR_SCHEMA = sensor.sensor_schema(
     CompressorFrequencySensor,
@@ -368,6 +375,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_UPDATE_INTERVAL, default="2s"): cv.All(cv.update_interval),
             cv.Optional(CONF_HORIZONTAL_SWING_SELECT): SELECT_SCHEMA,
             cv.Optional(CONF_VERTICAL_SWING_SELECT): SELECT_SCHEMA,
+            cv.Optional(CONF_LEFT_VANE_SELECT): LEFT_VANE_SELECT_SCHEMA,
             cv.Optional(
                 CONF_COMPRESSOR_FREQUENCY_SENSOR
             ): COMPRESSOR_FREQUENCY_SENSOR_SCHEMA,
@@ -564,6 +572,11 @@ def to_code(config):
         conf_item = config[CONF_VERTICAL_SWING_SELECT]
         swing_select_var = yield select.new_select(conf_item, options=[])
         cg.add(var.set_vertical_vane_select(swing_select_var))
+
+    if CONF_LEFT_VANE_SELECT in config:
+        conf_item = config[CONF_LEFT_VANE_SELECT]
+        left_vane_select_var = yield select.new_select(conf_item, options=[])
+        cg.add(var.set_left_vane_select(left_vane_select_var))
 
     if CONF_AIRFLOW_CONTROL_SELECT in config:
         conf_item = config[CONF_AIRFLOW_CONTROL_SELECT]

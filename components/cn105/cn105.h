@@ -5,6 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "heatpumpFunctions.h"
 #include "van_orientation_select.h"
+#include "left_vane_select.h"
 #include "uptime_connection_sensor.h"
 #include "compressor_frequency_sensor.h"
 #include "input_power_sensor.h"
@@ -68,6 +69,7 @@ namespace esphome {
         };
 
         void set_vertical_vane_select(VaneOrientationSelect* vertical_vane_select);
+        void set_left_vane_select(LeftVaneOrientationSelect* left_vane_select);
         void set_horizontal_vane_select(VaneOrientationSelect* horizontal_vane_select, const std::vector<std::string>& options = {});
         void set_airflow_control_select(VaneOrientationSelect* airflow_control_select);
         void set_compressor_frequency_sensor(esphome::sensor::Sensor* compressor_frequency_sensor);
@@ -142,6 +144,8 @@ namespace esphome {
 
         VaneOrientationSelect* vertical_vane_select_ =
             nullptr;  // Select to store manual position of vertical swing
+        LeftVaneOrientationSelect* left_vane_select_ =
+            nullptr;  // Select to store manual position of left vertical swing
         VaneOrientationSelect* horizontal_vane_select_ =
             nullptr;  // Select to store manual position of horizontal swing
         std::vector<std::string> horizontal_vane_options_strings_;  // Store strings for horizontal vane options
@@ -353,6 +357,7 @@ namespace esphome {
         const char* getModeSetting();
         const char* getPowerSetting();
         const char* getVaneSetting();
+        const char* getLeftVaneSetting();
         const char* getWideVaneSetting();
         const char* getAirflowControlSetting();
         const char* getFanSpeedSetting();
@@ -364,6 +369,7 @@ namespace esphome {
         void setModeSetting(const char* setting);
         void setPowerSetting(const char* setting);
         void setVaneSetting(const char* setting);
+        void setLeftVaneSetting(const char* setting);
         void setWideVaneSetting(const char* setting);
         void setAirflowControlSetting(const char* setting);
         void setFanSpeed(const char* setting);

@@ -174,6 +174,25 @@ void CN105Climate::getSettingsFromResponsePacket() {
     ESP_LOGD("Decoder", "[iSee  : %d]", receivedSettings.iSee);
     ESP_LOGD("Decoder", "[Mode  : %s]", receivedSettings.mode);
 
+    if (this->Jp_ai_auto_sensor_ != nullptr) {
+        const bool power_on = receivedSettings.power != nullptr && strcmp(receivedSettings.power, "ON") == 0;
+        const bool is_auto = receivedSettings.mode != nullptr && strcmp(receivedSettings.mode, "AUTO") == 0;
+        const bool is_zw_ai_auto = power_on && is_auto && data[13] == 0x0A && data[14] == 0x02;
+        const char* jp_ai_auto_state = "OTHER";
+        if (!power_on) {
+            jp_ai_auto_state = "OFF";
+        } else if (is_zw_ai_auto) {
+            jp_ai_auto_state = "AI_AUTO";
+        } else if (is_auto) {
+            jp_ai_auto_state = "AUTO";
+        }
+        ESP_LOGD("Decoder", "[JP AI Auto: %s] data[13]=0x%02X data[14]=0x%02X", jp_ai_auto_state, data[13], data[14]);
+        if (this->jp_ai_auto_state_ == nullptr || strcmp(jp_ai_auto_state, this->jp_ai_auto_state_) != 0) {
+            this->jp_ai_auto_state_ = jp_ai_auto_state;
+            this->Jp_ai_auto_sensor_->publish_state(jp_ai_auto_state);
+        }
+    }
+
     if (data[11] != 0x00) {
         int temp = data[11];
         temp -= 128;

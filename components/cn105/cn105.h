@@ -13,6 +13,7 @@
 #include "runtime_hours_sensor.h"
 #include "outside_air_temperature_sensor.h"
 #include "auto_sub_mode_sensor.h"
+#include "jp_ai_auto_sensor.h"
 #include "isee_sensor.h"
 #include "stage_sensor.h"
 #include "functions_sensor.h"
@@ -107,6 +108,7 @@ namespace esphome {
 
         void set_sub_mode_sensor(esphome::text_sensor::TextSensor* Sub_mode_sensor);
         void set_auto_sub_mode_sensor(esphome::text_sensor::TextSensor* Auto_sub_mode_sensor);
+        void set_jp_ai_auto_sensor(esphome::text_sensor::TextSensor* Jp_ai_auto_sensor);
         void set_error_code_sensor(esphome::text_sensor::TextSensor* error_code_sensor);
         void set_remote_temp_source(esphome::sensor::Sensor* source);
         void set_remote_temp_source_info_sensor(esphome::text_sensor::TextSensor* info_sensor);
@@ -129,6 +131,8 @@ namespace esphome {
         FunctionsNumber* Functions_set_value_ = nullptr;
         text_sensor::TextSensor* Sub_mode_sensor_ = nullptr;
         text_sensor::TextSensor* Auto_sub_mode_sensor_ = nullptr;
+        text_sensor::TextSensor* Jp_ai_auto_sensor_ = nullptr;
+        const char* jp_ai_auto_state_ = nullptr;
         text_sensor::TextSensor* error_code_sensor_{ nullptr };
         sensor::Sensor* remote_temp_source_{ nullptr };
         text_sensor::TextSensor* remote_temp_source_info_sensor_{ nullptr };

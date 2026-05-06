@@ -96,6 +96,7 @@ CONF_FUNCTIONS_SET_VALUE = "functions_set_value"
 CONF_STAGE_SENSOR = "stage_sensor"
 CONF_SUB_MODE_SENSOR = "sub_mode_sensor"
 CONF_AUTO_SUB_MODE_SENSOR = "auto_sub_mode_sensor"
+CONF_JP_AI_AUTO_SENSOR = "jp_ai_auto_sensor"
 CONF_ERROR_CODE_SENSOR = "error_code_sensor"
 CONF_REMOTE_TEMP_SOURCE = "remote_temperature_source"
 CONF_REMOTE_TEMP_SOURCE_SENSOR_ID = "sensor_id"
@@ -171,6 +172,9 @@ FunctionsNumber = cg.global_ns.class_("FunctionsNumber", number.Number, cg.Compo
 SubModSensor = cg.global_ns.class_("SubModSensor", text_sensor.TextSensor, cg.Component)
 AutoSubModSensor = cg.global_ns.class_(
     "AutoSubModSensor", text_sensor.TextSensor, cg.Component
+)
+JpAiAutoSensor = cg.global_ns.class_(
+    "JpAiAutoSensor", text_sensor.TextSensor, cg.Component
 )
 ErrorCodeSensor = cg.global_ns.class_(
     "ErrorCodeSensor", text_sensor.TextSensor, cg.Component
@@ -295,6 +299,9 @@ SUB_MODE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(SubModSensor).extend(
 AUTO_SUB_MODE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(AutoSubModSensor).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(AutoSubModSensor)}
 )
+JP_AI_AUTO_SENSOR_SCHEMA = text_sensor.text_sensor_schema(JpAiAutoSensor).extend(
+    {cv.GenerateID(CONF_ID): cv.declare_id(JpAiAutoSensor)}
+)
 
 ERROR_CODE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(ErrorCodeSensor).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(ErrorCodeSensor)}
@@ -410,6 +417,7 @@ CONFIG_SCHEMA = (
             ): STAGE_SENSOR_CONFIG_SCHEMA,  # ModifiÃÂÃÂ© pour le nouveau schÃÂÃÂ©ma
             cv.Optional(CONF_SUB_MODE_SENSOR): SUB_MODE_SENSOR_SCHEMA,
             cv.Optional(CONF_AUTO_SUB_MODE_SENSOR): AUTO_SUB_MODE_SENSOR_SCHEMA,
+            cv.Optional(CONF_JP_AI_AUTO_SENSOR): JP_AI_AUTO_SENSOR_SCHEMA,
             cv.Optional(CONF_ERROR_CODE_SENSOR): ERROR_CODE_SENSOR_SCHEMA,
             cv.Optional(CONF_REMOTE_TEMP_SOURCE): REMOTE_TEMP_SOURCE_SCHEMA,
             cv.Optional(CONF_REMOTE_TEMP_TIMEOUT, default="never"): cv.All(
@@ -723,6 +731,10 @@ def to_code(config):
             config[CONF_AUTO_SUB_MODE_SENSOR]
         )
         cg.add(var.set_auto_sub_mode_sensor(tsensor_var))
+
+    if CONF_JP_AI_AUTO_SENSOR in config:
+        tsensor_var = yield text_sensor.new_text_sensor(config[CONF_JP_AI_AUTO_SENSOR])
+        cg.add(var.set_jp_ai_auto_sensor(tsensor_var))
 
     if CONF_ERROR_CODE_SENSOR in config:
         tsensor_var = yield text_sensor.new_text_sensor(

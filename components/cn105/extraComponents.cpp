@@ -101,16 +101,17 @@ void CN105Climate::set_airflow_control_select(
     });;
 
     this->airflow_control_select_->setCallbackFunction([this](const char* setting) {
-        if (strcmp(this->currentSettings.wideVane, lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, 8, 0x80 & 0x0F)) == 0) {
-            ESP_LOGD("EVT", "airFlow -> Request for change of airflow control setting: %s", setting);
+        ESP_LOGD("EVT", "airFlow -> Request for change of airflow control setting: %s", setting);
 
-            this->setAirflowControlSetting(setting);
-            this->wantedRunStates.hasChanged = true;
-            this->wantedRunStates.hasBeenSent = false;
-            this->wantedRunStates.lastChange = CUSTOM_MILLIS;
-        } else {
-            this->airflow_control_select_->publish_state(this->currentRunStates.airflow_control);
-        }
+        this->setWideVaneSetting(WIDEVANE_MAP[10]);
+        this->wantedSettings.hasChanged = true;
+        this->wantedSettings.hasBeenSent = false;
+        this->wantedSettings.lastChange = CUSTOM_MILLIS;
+
+        this->setAirflowControlSetting(setting);
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
         });
 }
 

@@ -1,5 +1,6 @@
 
 #include "cn105.h"
+#include <algorithm>
 #ifdef USE_ESP32
 #include <driver/uart.h>
 #include <driver/gpio.h>
@@ -121,7 +122,8 @@ void CN105Climate::registerInfoRequests() {
     InfoRequest r_hvac_opts("hvac_options", "HVAC options", 0x42, 3, 500);
     r_hvac_opts.canSend = [this](const CN105Climate& self) {
         (void)self;
-        return (this->air_purifier_switch_ != nullptr || this->night_mode_switch_ != nullptr || this->circulator_switch_ != nullptr);
+        return this->isRawProbeCode(0x42) ||
+            (this->air_purifier_switch_ != nullptr || this->night_mode_switch_ != nullptr || this->circulator_switch_ != nullptr);
         };
     r_hvac_opts.onResponse = [this](CN105Climate& self) { (void)self; this->getHVACOptionsFromResponsePacket(); };
     scheduler_.register_request(r_hvac_opts);
@@ -132,20 +134,67 @@ void CN105Climate::registerInfoRequests() {
     scheduler_.register_request(r_error_info);
 
     InfoRequest r_timers("timers", "Timers", 0x05, 1, 0);
-    r_timers.disabled = true;
+    r_timers.disabled = !this->isRawProbeCode(0x05);
+    r_timers.onResponse = [](CN105Climate& self) {
+        ESP_LOGI(LOG_RAW_PROBE_TAG, "Response 0x05 length=%u", static_cast<unsigned>(self.parser_.data_length()));
+        self.hpPacketDebug(self.data, self.parser_.data_length(), LOG_RAW_PROBE_TAG);
+    };
     scheduler_.register_request(r_timers);
 
     // Call to the new dedicated method.
     this->registerHardwareSettingsRequests();
+    this->registerRawProbeRequests();
+}
+
+bool CN105Climate::isRawProbeCode(uint8_t code) const {
+    return std::find(this->raw_probe_codes_.begin(), this->raw_probe_codes_.end(), code) != this->raw_probe_codes_.end();
+}
+
+void CN105Climate::registerRawProbeRequests() {
+    if (this->raw_probe_codes_.empty()) {
+        ESP_LOGI(LOG_RAW_PROBE_TAG, "Raw probe disabled");
+        return;
+    }
+
+    ESP_LOGI(LOG_RAW_PROBE_TAG, "Registering %u raw probe request(s), interval=%u ms timeout=%u ms",
+        static_cast<unsigned>(this->raw_probe_codes_.size()),
+        static_cast<unsigned>(this->raw_probe_interval_ms_),
+        static_cast<unsigned>(this->raw_probe_timeout_ms_));
+
+    static const uint8_t built_in_codes[] = { 0x02, 0x03, 0x04, 0x05, 0x06, 0x09, 0x20, 0x22, 0x42 };
+
+    for (uint8_t code : this->raw_probe_codes_) {
+        if (std::find(std::begin(built_in_codes), std::end(built_in_codes), code) != std::end(built_in_codes)) {
+            ESP_LOGI(LOG_RAW_PROBE_TAG, "Code 0x%02X is already handled by a built-in request; raw probe will use existing READ logs", code);
+            if (code == 0x20 || code == 0x22) {
+                scheduler_.enable_request(code);
+            }
+            continue;
+        }
+
+        InfoRequest request("raw_probe", "Raw probe", code, 2, this->raw_probe_timeout_ms_, this->raw_probe_interval_ms_, LOG_RAW_PROBE_TAG);
+        request.onResponse = [code](CN105Climate& self) {
+            ESP_LOGI(LOG_RAW_PROBE_TAG, "Response 0x%02X length=%u", code, static_cast<unsigned>(self.parser_.data_length()));
+            self.hpPacketDebug(self.data, self.parser_.data_length(), LOG_RAW_PROBE_TAG);
+        };
+        scheduler_.register_request(request);
+    }
 }
 
 void CN105Climate::registerHardwareSettingsRequests() {
     uint32_t interval = 0;
     bool is_enabled = false;
 
+    const bool raw_probe_functions = this->isRawProbeCode(0x20) || this->isRawProbeCode(0x22);
+
     if (!this->hardware_settings_.empty()) {
         ESP_LOGI(LOG_FUNCTIONS_TAG, "Registering function settings requests (0x20/0x22) with interval %u ms", this->hardware_settings_interval_ms_);
         interval = this->hardware_settings_interval_ms_;
+        is_enabled = true;
+    }
+    else if (raw_probe_functions) {
+        ESP_LOGI(LOG_FUNCTIONS_TAG, "Registering function settings requests (0x20/0x22) for raw probe, interval %u ms", this->raw_probe_interval_ms_);
+        interval = this->raw_probe_interval_ms_;
         is_enabled = true;
     }
     else {
@@ -166,7 +215,7 @@ void CN105Climate::registerHardwareSettingsRequests() {
             }
         }
 
-        if (all_zeros) {
+        if (all_zeros && !self.isRawProbeCode(code)) {
             ESP_LOGW(LOG_FUNCTIONS_TAG, "Response 0x%02X contains only zeros. Feature not supported by unit. Disabling.", code);
 
             // 1. Do activate the request via the scheduler.
@@ -183,7 +232,7 @@ void CN105Climate::registerHardwareSettingsRequests() {
 
         // If no hardware settings are defined in YAML this was a manual request
         // that is expected to run once, disable future requests.
-        if (self.hardware_settings_.empty()) {
+        if (self.hardware_settings_.empty() && !self.isRawProbeCode(code)) {
             self.scheduler_.disable_request(code);
         }
 

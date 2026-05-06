@@ -20,6 +20,7 @@ static const char* LOG_OPERATING_STATUS_TAG = "OPERATING_STATUS";
 static const char* LOG_TEMP_SENSOR_TAG = "TEMP_SENSOR";
 static const char* LOG_DUAL_SP_TAG = "DUAL_SP";
 static const char* LOG_FUNCTIONS_TAG = "FUNCTIONS";
+static const char* LOG_RAW_PROBE_TAG = "RAW_PROBE";
 static const char* LOG_HARDWARE_SELECT_TAG = "HardwareSelect";
 static const char* LOG_CONN_TAG = "CN105_CONN";
 

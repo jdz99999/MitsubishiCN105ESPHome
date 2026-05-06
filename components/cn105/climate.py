@@ -110,6 +110,9 @@ CONF_CIRCULATOR_SWITCH = "circulator_switch"
 CONF_HARDWARE_SETTINGS = "hardware_settings"
 CONF_CODE = "code"
 CONF_OPTIONS = "options"
+CONF_RAW_PROBE = "raw_probe"
+CONF_CODES = "codes"
+CONF_TIMEOUT = "timeout"
 CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR = "remote_temperature_control_sensor"
 #CONF_REMOTE_TEMPERATURE_MARGIN = "remote_temperature_margin"
 CONF_TEMPERATURE_MARGIN = "temperature_margin"
@@ -359,6 +362,14 @@ HARDWARE_SETTING_SCHEMA = cv.Schema(
     }
 )
 
+RAW_PROBE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODES): cv.ensure_list(cv.int_range(min=0, max=255)),
+        cv.Optional(CONF_UPDATE_INTERVAL, default="10s"): cv.update_interval,
+        cv.Optional(CONF_TIMEOUT, default="500ms"): cv.update_interval,
+    }
+)
+
 CONFIG_SCHEMA = (
     climate.climate_schema(CN105Climate)
     .extend(
@@ -424,6 +435,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_NIGHT_MODE_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
             cv.Optional(CONF_CIRCULATOR_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
             cv.Optional(CONF_HARDWARE_SETTINGS): HARDWARE_SETTING_SCHEMA,
+            cv.Optional(CONF_RAW_PROBE): RAW_PROBE_SCHEMA,
             cv.Optional(
                 CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR
             ): REMOTE_TEMPERATURE_CONTROL_SENSOR_SCHEMA,
@@ -758,6 +770,25 @@ def to_code(config):
             )
 
             cg.add(var.add_hardware_setting(setting_var))
+
+    if CONF_RAW_PROBE in config:
+        raw_probe_config = config[CONF_RAW_PROBE]
+        codes_expr = cg.RawExpression(
+            "std::vector<uint8_t>{"
+            + ", ".join([f"0x{code:02X}" for code in raw_probe_config[CONF_CODES]])
+            + "}"
+        )
+        cg.add(var.set_raw_probe_codes(codes_expr))
+        cg.add(
+            var.set_raw_probe_interval(
+                int(raw_probe_config[CONF_UPDATE_INTERVAL].total_milliseconds)
+            )
+        )
+        cg.add(
+            var.set_raw_probe_timeout(
+                int(raw_probe_config[CONF_TIMEOUT].total_milliseconds)
+            )
+        )
 
     yield cg.register_component(var, config)
     yield climate.register_climate(var, config)

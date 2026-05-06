@@ -87,6 +87,9 @@ namespace esphome {
 
         void add_hardware_setting(HardwareSettingSelect* setting);
         void set_hardware_settings_interval(uint32_t interval_ms) { this->hardware_settings_interval_ms_ = interval_ms; }
+        void set_raw_probe_codes(const std::vector<uint8_t>& codes) { this->raw_probe_codes_ = codes; }
+        void set_raw_probe_interval(uint32_t interval_ms) { this->raw_probe_interval_ms_ = interval_ms; }
+        void set_raw_probe_timeout(uint32_t timeout_ms) { this->raw_probe_timeout_ms_ = timeout_ms; }
         
         // Deprecated: kept for backward compatibility, will map to VaneType::SPLIT_HORIZONTAL
         void set_horizontal_vanes(int horizontal_vanes) { 
@@ -450,6 +453,8 @@ namespace esphome {
         RequestScheduler scheduler_;
         void registerInfoRequests();
         void registerHardwareSettingsRequests();
+        void registerRawProbeRequests();
+        bool isRawProbeCode(uint8_t code) const;
 
 #ifdef USE_ESP32
         std::mutex wantedSettingsMutex;
@@ -531,5 +536,8 @@ namespace esphome {
         bool supports_dual_setpoint_ = false;
         int horizontal_vanes_{ 1 }; // Kept for legacy logging if needed, or can be removed if unused.
         VaneType vane_type_{ VaneType::STANDARD };
+        std::vector<uint8_t> raw_probe_codes_{};
+        uint32_t raw_probe_interval_ms_{ 10000 };
+        uint32_t raw_probe_timeout_ms_{ 500 };
     };
 }

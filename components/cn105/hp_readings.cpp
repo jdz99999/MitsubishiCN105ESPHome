@@ -89,6 +89,8 @@ void CN105Climate::getPowerFromResponsePacket() {
     ESP_LOGD("Decoder", "[0x09 is sub modes]");
 
     heatpumpSettings receivedSettings{};
+    ESP_LOGD(LOG_RAW_PROBE_TAG, "0x09 candidates: data[3]=0x%02X data[4]=0x%02X data[5]=0x%02X data[6]=0x%02X data[7]=0x%02X data[8]=0x%02X data[9]=0x%02X data[10]=0x%02X data[11]=0x%02X data[12]=0x%02X data[13]=0x%02X data[14]=0x%02X data[15]=0x%02X",
+        data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
 
     // Use std::optional lookups — keep previous value on unknown bytes
     auto stage_opt = cn105_protocol::lookup_value_opt(STAGE_MAP, STAGE, 7, data[4]);
@@ -289,6 +291,11 @@ void CN105Climate::getRoomTemperatureFromResponsePacket() {
         receivedStatus.outsideAirTemperature = NAN;
     }
 
+    const float jp_oat_no_offset = data[4] / 2.0f;
+    const float jp_oat_minus_8 = (data[4] - 8) / 2.0f;
+    ESP_LOGD(LOG_RAW_PROBE_TAG, "0x03 candidates: room_a_data[3]=0x%02X room_b_data[6]=0x%02X oat_current_data[5]=0x%02X oat_jp_data[4]=0x%02X jp_no_offset=%.1f jp_minus_8=%.1f data[7]=0x%02X data[8]=0x%02X data[13]=0x%02X",
+        data[3], data[6], data[5], data[4], jp_oat_no_offset, jp_oat_minus_8, data[7], data[8], data[13]);
+
     if (data[6] != 0x00) {
         int temp = data[6];
         temp -= 128;
@@ -344,6 +351,8 @@ void CN105Climate::getOperatingAndCompressorFreqFromResponsePacket() {
     // ?? = unknown bytes that appear to have a fixed/constant value
     heatpumpStatus receivedStatus{};
     ESP_LOGD("Decoder", "[0x06 is status]");
+    ESP_LOGD(LOG_RAW_PROBE_TAG, "0x06 candidates: comp_data[3]=0x%02X operating_data[4]=0x%02X input_hi_data[5]=0x%02X input_lo_or_stage_data[6]=0x%02X energy_hi_data[7]=0x%02X energy_lo_data[8]=0x%02X data[9]=0x%02X data[10]=0x%02X data[11]=0x%02X data[12]=0x%02X data[13]=0x%02X data[14]=0x%02X data[15]=0x%02X",
+        data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
     //this->last_received_packet_sensor->publish_state("0x62-> 0x06: Data -> Heatpump Status");
 
     // reset counter (because a reply indicates it is connected)

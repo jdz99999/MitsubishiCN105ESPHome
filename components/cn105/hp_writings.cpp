@@ -164,7 +164,7 @@ const char* CN105Climate::getLeftVaneSetting() {
 
 const char* CN105Climate::getWideVaneSetting() {
     if (this->wantedSettings.wideVane) {
-        if (strcmp(this->wantedSettings.wideVane, lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, 8, 0x80 & 0x0F)) == 0 && !this->currentSettings.iSee) {
+        if (strcmp(this->wantedSettings.wideVane, lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, WIDEVANE_LEN, 0x80 & 0x0F)) == 0 && !this->currentSettings.iSee) {
             this->wantedSettings.wideVane = this->currentSettings.wideVane;
         }
         return this->wantedSettings.wideVane;
@@ -278,7 +278,7 @@ void CN105Climate::createPacket(uint8_t* packet) {
 
     if (this->wantedSettings.wideVane != nullptr) {
         ESP_LOGD(TAG, "heatpump widevane -> %s", getWideVaneSetting());
-        int idx = lookupByteMapIndex(WIDEVANE_MAP, 8, getWideVaneSetting(), "wideVane (write)");
+        int idx = lookupByteMapIndex(WIDEVANE_MAP, WIDEVANE_LEN, getWideVaneSetting(), "wideVane (write)");
         if (idx >= 0) {
             packet[18] = WIDEVANE[idx] | (this->wideVaneAdj ? 0x80 : 0x00);
             packet[7] += CONTROL_PACKET_2[0];

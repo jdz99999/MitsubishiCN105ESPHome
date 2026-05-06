@@ -709,7 +709,7 @@ void CN105Climate::setLeftVaneSetting(const char* setting) {
 }
 
 void CN105Climate::setWideVaneSetting(const char* setting) {
-    int index = lookupByteMapIndex(WIDEVANE_MAP, 8, setting);
+    int index = lookupByteMapIndex(WIDEVANE_MAP, WIDEVANE_LEN, setting);
     if (index > -1) {
         wantedSettings.wideVane = WIDEVANE_MAP[index];
     } else {

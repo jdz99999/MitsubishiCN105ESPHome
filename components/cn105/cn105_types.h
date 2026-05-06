@@ -87,8 +87,9 @@ static const char* LEFT_VANE_MAP[7] = { "AUTO", "↑↑", "↑", "—", "↓", "
 //   0x07 — split pattern: 4 outlets active on one side, 2 empty on the other
 //   0x09 — symmetric split with a gap in the middle (2-2-2 outlet pattern)
 // Previously these generated "Unknown wideVane byte 0x06/0x07/0x09" warnings.
-static const uint8_t WIDEVANE[11]   = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,    0x07,       0x08, 0x09,         0x0c,    0x00 };
-static const char* WIDEVANE_MAP[11] = { "←←", "←",  "|",  "→",  "→→", "←−JP", "SPLIT_4-2", "←→", "SPLIT_2-2-2", "SWING", "AIRFLOW CONTROL" };
+static const int WIDEVANE_LEN = 11;
+static const uint8_t WIDEVANE[WIDEVANE_LEN]   = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,    0x07,       0x08, 0x09,         0x0c,    0x00 };
+static const char* WIDEVANE_MAP[WIDEVANE_LEN] = { "←←", "←",  "|",  "→",  "→→", "←−JP", "SPLIT_4-2", "←→", "SPLIT_2-2-2", "SWING", "AIRFLOW CONTROL" };
 static const uint8_t ROOM_TEMP[32] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
                                   0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f };
 static const int ROOM_TEMP_MAP[32] = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,

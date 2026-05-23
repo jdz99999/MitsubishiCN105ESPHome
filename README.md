@@ -752,6 +752,9 @@ sensor:
     id: ha_remote_temp
     entity_id: sensor.my_room_temperature # Your HA temperature sensor
     internal: true
+    # Uncomment the filter and lambda lines to convert F to C on incoming temperature
+#    filters:
+#      - lambda: return (x - 32) * (5.0/9.0);
 ```
 
 **Step 2:** Reference it in the climate config:

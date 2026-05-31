@@ -215,7 +215,12 @@ void CN105Climate::getSettingsFromResponsePacket() {
             receivedSettings.wideVane = *wideVane_opt;
         } else {
             ESP_LOGW("Decoder", "Unknown wideVane byte 0x%02X — keeping previous value", wideVaneByte);
-            receivedSettings.wideVane = this->currentSettings.wideVane;
+            // Guard against null: on the first settings packet currentSettings.wideVane
+            // is still nullptr, and an unknown byte here would otherwise propagate a null
+            // pointer into the %s log below (and downstream), panicking the ESP32.
+            receivedSettings.wideVane = this->currentSettings.wideVane
+                ? this->currentSettings.wideVane
+                : WIDEVANE_MAP[2];  // default to "|" (center) when no prior value exists
         }
         this->wideVaneAdj = (data[10] & 0xF0) == 0x80 ? true : false;
         ESP_LOGD("Decoder", "[wideVane: %s (adj:%d)]", receivedSettings.wideVane, this->wideVaneAdj);

@@ -13,6 +13,7 @@ from homeassistant.components.select import DOMAIN as SELECT_DOMAIN
 from . import DOMAIN
 
 CONF_HORIZONTAL_VANE_ENTITY = "horizontal_vane_entity"
+CONF_VERTICAL_VANE_ENTITY = "vertical_vane_entity"
 
 
 class MitsubishiHybridConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -50,6 +51,9 @@ class MitsubishiHybridConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required(CONF_SOURCE): vol.In(climate_entities),
             vol.Optional(CONF_NAME): str,
             vol.Optional(CONF_HORIZONTAL_VANE_ENTITY): vol.In(
+                select_entities_with_none
+            ),
+            vol.Optional(CONF_VERTICAL_VANE_ENTITY): vol.In(
                 select_entities_with_none
             ),
         })

@@ -3,11 +3,12 @@
     "step": {
       "user": {
         "title": "Add Mitsubishi Climate Proxy",
-        "description": "Create a hybrid entity with Dual/Single setpoint wrapper and optional horizontal vane (WideVane) control.",
+        "description": "Create a hybrid entity with Dual/Single setpoint wrapper and optional vane controls (horizontal WideVane via swing_horizontal_mode; vertical vane positions presented as swing modes).",
         "data": {
           "source": "Source Entity (ESPHome Climate)",
           "name": "Name for the new Hybrid Entity",
-          "horizontal_vane_entity": "Horizontal Vane Entity (ESPHome Select, optional)"
+          "horizontal_vane_entity": "Horizontal Vane Entity (ESPHome Select, optional)",
+          "vertical_vane_entity": "Vertical Vane Entity (ESPHome Select, optional — its positions become the swing modes)"
         }
       }
     },

@@ -779,11 +779,27 @@ void CN105Climate::checkPowerAndModeSettings(heatpumpSettings& settings, bool up
         }
         if (strcmp(settings.power, "ON") == 0) {
             if (strcmp(settings.mode, "HEAT") == 0) {
-                this->mode = climate::CLIMATE_MODE_HEAT;
+                // A dual-setpoint unit driven in HEAT_COOL runs the heat pump in
+                // hardware AUTO, and the unit reports its *active operating
+                // direction* ("HEAT" here) back in the settings packet. Letting
+                // that overwrite this->mode silently drops the user out of
+                // HEAT_COOL and collapses the dual band to a single setpoint
+                // (updateTargetTemperaturesFromSettings then runs single-setpoint).
+                // Keep HEAT_COOL; the operating direction is surfaced separately
+                // by the auto_sub_mode sensor.
+                if (!(this->supports_dual_setpoint_ &&
+                      this->mode == climate::CLIMATE_MODE_HEAT_COOL)) {
+                    this->mode = climate::CLIMATE_MODE_HEAT;
+                }
             } else if (strcmp(settings.mode, "DRY") == 0) {
                 this->mode = climate::CLIMATE_MODE_DRY;
             } else if (strcmp(settings.mode, "COOL") == 0) {
-                this->mode = climate::CLIMATE_MODE_COOL;
+                // Same as the HEAT branch: hardware AUTO reports "COOL" as the
+                // active operating direction; don't let it clobber HEAT_COOL.
+                if (!(this->supports_dual_setpoint_ &&
+                      this->mode == climate::CLIMATE_MODE_HEAT_COOL)) {
+                    this->mode = climate::CLIMATE_MODE_COOL;
+                }
                 /*if (cool_setpoint != currentSettings.temperature) {
                     cool_setpoint = currentSettings.temperature;
                     save(currentSettings.temperature, cool_storage);

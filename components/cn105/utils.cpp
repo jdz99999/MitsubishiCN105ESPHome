@@ -113,8 +113,14 @@ void CN105Climate::updateTargetTemperaturesFromSettings(float temperature) {
             if (std::isnan(this->getTargetTemperatureLow())) {
                 this->setTargetTemperatureLow(temperature);
             }
-        } else if (this->mode == climate::CLIMATE_MODE_AUTO) {
-            // En AUTO: si les deux bornes existent déjà, ne pas recentrer
+        } else if (this->mode == climate::CLIMATE_MODE_AUTO || this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
+            // En AUTO/HEAT_COOL: si les deux bornes existent déjà, ne pas recentrer.
+            // In HEAT_COOL the transmitted setpoint is the deadband output
+            // clamp(current, low, high) — it carries no information about the
+            // band, so reconstructing the band from it corrupts the user's
+            // setpoints (issue #673: with fahrenheit_compatibility the
+            // non-idempotent table round-trip ratchets the band +0.5°C per
+            // pass until it parks 1.0°C above the requested values).
             bool lowDefined = !std::isnan(this->getTargetTemperatureLow());
             bool highDefined = !std::isnan(this->getTargetTemperatureHigh());
 

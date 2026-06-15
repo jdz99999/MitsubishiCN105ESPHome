@@ -116,8 +116,16 @@ configurable (defaults shown):
 | `recompute_event` | `mxz_recompute` | event fired after a write to nudge the coordinator |
 | `comfort_offset` | `6.0` | °F applied to the far band edge in non-coordinator dual-setpoint writes |
 
-**Default is off**, in which case behavior is identical to a plain proxy. A reference coordinator
-package, [ha-mxz-coordinator](https://github.com/dkpnw/ha-mxz-coordinator), pairs with these defaults.
+**Default is off**, in which case behavior is identical to a plain proxy. The companion coordinator,
+**[ha-mxz-coordinator](https://github.com/dkpnw/ha-mxz-coordinator)**, is now a **one-click HACS
+integration** (config-flow): add the repo to HACS, download it, then add the integration from the UI
+and pick your heads and temperature sensors — no YAML editing.
+
+> **Which coordinator install to pair with:** the `input_number.*` / `input_boolean.*` /
+> `input_select.*` writes documented above match ha-mxz-coordinator's **legacy YAML package**. Its
+> **v2.0.0 HACS integration** instead owns its helpers as **`number.*` / `switch.*` / `select.*`**
+> entities, which this proxy mode does not write to yet — so pair the proxy's single-target mode with
+> the **YAML package** for now. The `mxz_recompute` event nudge works with either.
 
 ## Under the Hood: How it solves the UI Glitch
 

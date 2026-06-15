@@ -89,6 +89,36 @@ When a `horizontal_vane_entity` is configured, the proxy:
 
 This allows the WideVane to appear directly in the standard climate card alongside the vertical swing.
 
+### Coordinator Single-Target Mode (optional, off by default)
+A multi-zone Mitsubishi MXZ outdoor unit can only run **one mode at a time**, so running each indoor
+head in hardware AUTO causes the well-known "idle head starves the other" standby deadlock. The usual
+fix is an external **coordinator** that keeps every head in one explicit shared mode and drives each
+room to a single target. This mode turns the proxy into the thermostat *surface* for such a
+coordinator-owned head:
+
+*   Presents a **single target temperature** (OFF / HEAT / COOL only — no `heat_cool`, no dual range).
+*   **Reports the coordinator's current shared mode** and masks the firmware's `fan_only`/`idle` so
+    HomeKit/Google show a clean "to X°, idle" instead of a scary `fan_only` tile.
+*   **Redirects writes to the coordinator's helpers** (never the firmware directly): setting the
+    temperature writes the room's `input_number` target and enables the room; OFF clears the room
+    enable; both fire a recompute event for the coordinator. Toggle it live via the **Options flow** —
+    the entry reloads in place, so the **HomeKit accessory ID stays stable** (no re-pair).
+
+Enable it with `coordinator_single_target: true` plus a `room_key`. The helper names are fully
+configurable (defaults shown):
+
+| Option | Default | Purpose |
+|---|---|---|
+| `room_key` | *(required)* | zone key `K`, e.g. `primary` |
+| `helper_prefix` | `hvac` | builds `input_number.<prefix>_<K>_target` / `input_boolean.<prefix>_<K>_enable` |
+| `shared_mode_entity` | `input_select.hvac_shared_mode` | the coordinator's current mode (cool/heat) |
+| `season_entity` | `input_select.hvac_season` | season fallback (cooling/heating) |
+| `recompute_event` | `mxz_recompute` | event fired after a write to nudge the coordinator |
+| `comfort_offset` | `6.0` | °F applied to the far band edge in non-coordinator dual-setpoint writes |
+
+**Default is off**, in which case behavior is identical to a plain proxy. A reference coordinator
+package, [ha-mxz-coordinator](https://github.com/dkpnw/ha-mxz-coordinator), pairs with these defaults.
+
 ## Under the Hood: How it solves the UI Glitch
 
 ### The Problem

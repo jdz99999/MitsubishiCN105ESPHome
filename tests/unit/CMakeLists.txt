@@ -37,6 +37,7 @@ add_executable(cn105_tests
     test_real_frames.cpp
     test_frame_parser.cpp
     test_protocol.cpp
+    test_setpoint_persistence.cpp
 )
 
 target_link_libraries(cn105_tests

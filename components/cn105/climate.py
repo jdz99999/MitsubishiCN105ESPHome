@@ -117,6 +117,7 @@ CONF_POWER_UNIT_IS_BTU = "power_unit_is_btu"
 
 # Support explicite du DUAL setpoint via YAML
 CONF_DUAL_SETPOINT = "dual_setpoint"
+CONF_RESTORE_SETPOINTS = "restore_setpoints"
 
 DEFAULT_CLIMATE_MODES = ["AUTO", "COOL", "HEAT", "DRY", "FAN_ONLY", "HEAT_COOL"]
 DEFAULT_FAN_MODES = ["AUTO", "MIDDLE", "QUIET", "LOW", "MEDIUM", "HIGH"]
@@ -446,6 +447,7 @@ CONFIG_SCHEMA = (
                         CONF_SWING_MODE, default=DEFAULT_SWING_MODES
                     ): cv.ensure_list(climate.validate_climate_swing_mode),
                     cv.Optional(CONF_DUAL_SETPOINT, default=False): cv.boolean,
+                    cv.Optional(CONF_RESTORE_SETPOINTS, default=False): cv.boolean,
                     cv.Optional(CONF_SUPPORTS_HORIZONTAL_VANE_MODE): cv.ensure_list(
                         cv.string
                     ),
@@ -527,6 +529,10 @@ def to_code(config):
             cg.add(traits.add_feature_flags(dual_flag))
 
         # Note: If yaml_dual is False, we simply do NOT add the dual_flag.
+
+        # Opt-in: persist the HEAT_COOL band (mode + low/high) to flash and restore
+        # it on boot, so a reboot/OTA doesn't drop the unit back to hardware AUTO.
+        cg.add(var.set_restore_setpoints(supports.get(CONF_RESTORE_SETPOINTS, False)))
         # ESPHome's default behavior for modes like COOL/HEAT is to enable single-point target temperature.
         # We don't need to explicitly force single-point or clear the dual flag (it's off by default).
 

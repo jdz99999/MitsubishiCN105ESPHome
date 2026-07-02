@@ -436,12 +436,6 @@ void CN105Climate::terminateCycle() {
 
     this->loopCycle.cycleEnded();
 
-    if (this->hp_uptime_connection_sensor_ != nullptr) {
-        // if the uptime connection sensor is configured
-        // we trigger  manual update at the end of a cycle.
-        this->hp_uptime_connection_sensor_->update();
-    }
-
     this->nbCompleteCycles_++;
 }
 void CN105Climate::getErrorInfoFromResponsePacket() {

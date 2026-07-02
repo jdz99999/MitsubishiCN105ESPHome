@@ -742,6 +742,7 @@ def to_code(config):
     if CONF_HP_UP_TIME_CONNECTION_SENSOR in config:
         conf = config[CONF_HP_UP_TIME_CONNECTION_SENSOR]
         hp_connection_sensor_ = yield sensor.new_sensor(conf)
+        yield cg.register_component(hp_connection_sensor_, conf)
         cg.add(var.set_hp_uptime_connection_sensor(hp_connection_sensor_))
 
     if CONF_HARDWARE_SETTINGS in config:

@@ -2,7 +2,7 @@
 /// Deps: cn105_protocol.h, cn105_types.h
 ///
 /// Source: Live debug logs from atom-s3 ESP32 (2026-05-02 14:04-14:05)
-/// Each test validates checksum + field decoding against actual PAC behavior.
+/// Each test validates checksum and field decoding against actual heat-pump behavior.
 #include <gtest/gtest.h>
 #include "cn105_protocol.h"
 #include "cn105_types.h"

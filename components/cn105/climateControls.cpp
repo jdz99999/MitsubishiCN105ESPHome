@@ -394,7 +394,7 @@ void CN105Climate::controlTemperature() {
                 if (std::isnan(this->getTargetTemperatureHigh())) {
                     this->setTargetTemperatureHigh(currentSettings.temperature + 2.0f);
                 }
-                ESP_LOGI("control", "Initializing HEAT_COOL mode temps from current PAC temp: %.1f -> [%.1f - %.1f]",
+                ESP_LOGI("control", "Initializing HEAT_COOL mode temperatures from the current heat-pump temperature: %.1f -> [%.1f - %.1f]",
                     currentSettings.temperature, this->getTargetTemperatureLow(), this->getTargetTemperatureHigh());
             }
             // In HEAT_COOL, use deadband to calculate 'setting'

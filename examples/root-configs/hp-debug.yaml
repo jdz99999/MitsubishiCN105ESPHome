@@ -41,11 +41,11 @@ api:
       variables:
         temperature: float
       then:
-        - lambda: 'id(clim_seb).set_remote_temperature(temperature);'
+        - lambda: 'id(climate_debug).set_remote_temperature(temperature);'
 
     - service: use_internal_temperature
       then:
-        - lambda: 'id(clim_seb).set_remote_temperature(0);'
+        - lambda: 'id(climate_debug).set_remote_temperature(0);'
   encryption:
     key: !secret encryption_key
 
@@ -125,7 +125,7 @@ uart:
 climate:
   - platform: cn105  # Replace with the platform of your choice.
     name: "Living Room Climate"
-    id: "clim_seb"
+    id: "climate_debug"
     update_interval: 4s    
     hp_uptime_connection_sensor:
       name: ${name} HP Uptime Connection
@@ -155,20 +155,20 @@ select:
     on_value:
       - lambda: |-
           int baud_rate = atoi(x.c_str());
-          id(clim_seb).set_baud_rate(baud_rate);
+          id(climate_debug).set_baud_rate(baud_rate);
 
 #id(baud_rate_select).publish_state(x);
 
 # extra_components in the code automatically add them
 # sensor: 
 #   - platform: template
-#     name: Operating (Clim)
+#     name: Operating (Climate)
 #     lambda: |-
-#       return(id(clim_seb).is_operating());
+#       return(id(climate_debug).is_operating());
 #   - platform: template
-#     name: Compressor Frequency (Clim)
+#     name: Compressor Frequency (Climate)
 #     lambda: |-
-#       return(id(clim_seb).get_compressor_frequency());
+#       return(id(climate_debug).get_compressor_frequency());
 
 # Switch entity configuration
 switch:
@@ -181,11 +181,11 @@ switch:
     turn_on_action:
       - lambda: |-
           // Call setupUART when the switch is turned on.
-          id(clim_seb).setupUART();
+          id(climate_debug).setupUART();
     turn_off_action:
       - lambda: |-
           // Disconnect UART when the switch is turned off.
-          id(clim_seb).disconnectUART();
+          id(climate_debug).disconnectUART();
 
   - platform: template
     name: "Send 1st packet Switch"
@@ -195,7 +195,7 @@ switch:
     optimistic: true
     turn_on_action:
       - lambda: |-          
-          id(clim_seb).sendFirstConnectionPacket();    
+          id(climate_debug).sendFirstConnectionPacket();
   
   - platform: template
     name: "Send request Info packets"
@@ -205,4 +205,4 @@ switch:
     optimistic: true    
     turn_on_action:
       - lambda: |-          
-          id(clim_seb).buildAndSendRequestsInfoPackets();
+          id(climate_debug).buildAndSendRequestsInfoPackets();

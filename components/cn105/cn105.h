@@ -248,7 +248,7 @@ namespace esphome {
         void pingExternalTemperature();
 
         // Start/stop the remote temperature keep-alive timer
-        // Keep-alive periodically re-sends the remote temperature to prevent PAC fallback to internal sensor
+        // Keep-alive periodically re-sends the remote temperature to prevent heat-pump fallback to the internal sensor.
         void startRemoteTempKeepAlive();
         void stopRemoteTempKeepAlive();
 

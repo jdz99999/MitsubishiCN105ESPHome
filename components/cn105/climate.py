@@ -67,7 +67,7 @@ AUTO_LOAD = [
     "uptime",
     "number",
 ]
-DEPENDENCIES = ["uart"]  # Garder uart ici aussi
+DEPENDENCIES = ["uart"]  # Keep UART as an explicit dependency.
 
 CONF_SUPPORTS = "supports"
 CONF_SUPPORTS_HORIZONTAL_VANE_MODE = "horizontal_vane_mode"

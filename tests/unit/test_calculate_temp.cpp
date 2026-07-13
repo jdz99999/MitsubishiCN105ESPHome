@@ -1,4 +1,4 @@
-/// test_calculate_temp.cpp — Tests de non-régression pour calculateTemperatureSetting()
+/// test_calculate_temp.cpp - Regression tests for calculateTemperatureSetting().
 /// Deps: cn105_types.h, esphome_stubs.h
 #include <gtest/gtest.h>
 #include <cmath>

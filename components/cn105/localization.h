@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace esphome {
@@ -17,7 +18,7 @@ namespace esphome {
         }
 
         float normalizeHeatpumpTemperatureToUiTemperature(const float c) {
-            if (fahrenheit_mode_ == FahrenheitMode::OFF || c == NAN) {
+            if (fahrenheit_mode_ == FahrenheitMode::OFF || std::isnan(c)) {
                 return c; // If disabled, return the Celsius value as is.
             }
 
@@ -46,7 +47,7 @@ namespace esphome {
         }
 
         float normalizeUiTemperatureToHeatpumpTemperature(const float c) {
-            if (fahrenheit_mode_ == FahrenheitMode::OFF || c == NAN) {
+            if (fahrenheit_mode_ == FahrenheitMode::OFF || std::isnan(c)) {
                 return c; // If disabled, return the Celsius value as is.
             }
 
@@ -82,20 +83,20 @@ namespace esphome {
         // Mitsubishi thermostats would have converted the Fahrenheit value to. For
         // instance, 72°F is 22.22°C, but this class returns 22.5°C.
         const std::vector<std::pair<float, float>> fahrenheitToCelsiusTable = {
-            {61, 16.0}, {62, 16.5}, {63, 17.0}, {64, 17.5}, {65, 18.0},
-            {66, 18.5}, {67, 19.0}, {68, 20.0}, {69, 21.0}, {70, 21.5},
-            {71, 22.0}, {72, 22.5}, {73, 23.0}, {74, 23.5}, {75, 24.0},
-            {76, 24.5}, {77, 25.0}, {78, 25.5}, {79, 26.0}, {80, 26.5},
-            {81, 27.0}, {82, 27.5}, {83, 28.0}, {84, 28.5}, {85, 29.0},
-            {86, 29.5}, {87, 30.0}, {88, 30.5}
+            {61.0f, 16.0f}, {62.0f, 16.5f}, {63.0f, 17.0f}, {64.0f, 17.5f}, {65.0f, 18.0f},
+            {66.0f, 18.5f}, {67.0f, 19.0f}, {68.0f, 20.0f}, {69.0f, 21.0f}, {70.0f, 21.5f},
+            {71.0f, 22.0f}, {72.0f, 22.5f}, {73.0f, 23.0f}, {74.0f, 23.5f}, {75.0f, 24.0f},
+            {76.0f, 24.5f}, {77.0f, 25.0f}, {78.0f, 25.5f}, {79.0f, 26.0f}, {80.0f, 26.5f},
+            {81.0f, 27.0f}, {82.0f, 27.5f}, {83.0f, 28.0f}, {84.0f, 28.5f}, {85.0f, 29.0f},
+            {86.0f, 29.5f}, {87.0f, 30.0f}, {88.0f, 30.5f}
         };
         const std::vector<std::pair<float, float>> fahrenheitToCelsiusTableAlt = {
-            {61, 16.0}, {62, 16.5}, {63, 17.0}, {64, 18.0}, {65, 18.5},
-            {66, 19.0}, {67, 19.5}, {68, 20.0}, {69, 20.5}, {70, 21.0},
-            {71, 21.5}, {72, 22.0}, {73, 23.0}, {74, 23.5}, {75, 24.0},
-            {76, 24.5}, {77, 25.0}, {78, 25.5}, {79, 26.0}, {80, 26.5},
-            {81, 27.0}, {82, 28.0}, {83, 28.5}, {84, 29.0}, {85, 29.5},
-            {86, 30.0}, {87, 30.5}, {88, 31.0}
+            {61.0f, 16.0f}, {62.0f, 16.5f}, {63.0f, 17.0f}, {64.0f, 18.0f}, {65.0f, 18.5f},
+            {66.0f, 19.0f}, {67.0f, 19.5f}, {68.0f, 20.0f}, {69.0f, 20.5f}, {70.0f, 21.0f},
+            {71.0f, 21.5f}, {72.0f, 22.0f}, {73.0f, 23.0f}, {74.0f, 23.5f}, {75.0f, 24.0f},
+            {76.0f, 24.5f}, {77.0f, 25.0f}, {78.0f, 25.5f}, {79.0f, 26.0f}, {80.0f, 26.5f},
+            {81.0f, 27.0f}, {82.0f, 28.0f}, {83.0f, 28.5f}, {84.0f, 29.0f}, {85.0f, 29.5f},
+            {86.0f, 30.0f}, {87.0f, 30.5f}, {88.0f, 31.0f}
         };
     };
 }

@@ -178,7 +178,7 @@ substitutions:
 
 #### Climate component full example
 
-This example adds support for configuring the temperature steps, adding an icon, and the optional climate sensors supported by SwiCago (but not supported by all indoor units), `compressor_frequency_sensor`, `vertical_vane_select`, `horizontal_vane_select` and `isee_sensor`. Supports many of the other features of the [ESPHome climate component](https://esphome.io/components/climate/index.html) as well for additional customization.
+This example adds support for configuring the temperature steps, adding an icon, and optional climate sensors and controls. These include `compressor_frequency_sensor`, `vertical_vane_select`, `horizontal_vane_select`, `left_vane_select`, and `isee_sensor`; availability depends on the indoor unit. It also supports many of the other features of the [ESPHome climate component](https://esphome.io/components/climate/index.html) for additional customization.
 
 The `remote_temperature_timeout` setting allows the unit to revert back to the internal temperature measurement if it does not receive an update in the specified time range (highly recommended if using remote temperature updates).
 
@@ -232,6 +232,10 @@ climate:
     vertical_vane_select:
       name: Vertical Vane
       disabled_by_default: false
+    # JP split-vane units only. This is the left vertical vane; vertical_vane_select is the right.
+    left_vane_select:
+      name: Left Vertical Vane
+      disabled_by_default: true
     horizontal_vane_select:
       name: Horizontal Vane
       disabled_by_default: true
@@ -249,6 +253,11 @@ climate:
       disabled_by_default: true
     auto_sub_mode_sensor:
       name: Auto Sub Mode
+      entity_category: diagnostic
+      disabled_by_default: true
+    # JP ZW-series diagnostic state: OFF, AUTO, AI_AUTO, or OTHER.
+    jp_ai_auto_sensor:
+      name: JP AI Auto
       entity_category: diagnostic
       disabled_by_default: true
     input_power_sensor:
@@ -282,7 +291,8 @@ climate:
       fan_mode: [AUTO, QUIET, LOW, MEDIUM, HIGH]
       swing_mode: ["OFF", VERTICAL]
       # Specify which options to display in horizontal_vane_select dropdown
-      # Defaults to all options: ["←←", "←", "|", "→", "→→", "←→", "SWING", "AIRFLOW CONTROL"]
+      # Defaults to all options, including JP ZW positions ←−JP, SPLIT_4-2,
+      # SPLIT_2-2-2, and AIRFLOW CONTROL.
       # Example to hide "←→" and "AIRFLOW CONTROL" if not supported by your unit:
       horizontal_vane_mode: ["←←", "←", "|", "→", "→→", SWING]
 ```
@@ -344,7 +354,7 @@ Build the project in ESPHome and install to your device. Install the device in y
 
 > [!TIP]
 > To force an OTA upload via command line without interactive prompts, use:
-> `esphome run myfirmware/clim-chambre-awox.yaml --device <IP_ADDRESS>`
+> `esphome run myfirmware/climate-bedroom-awox.yaml --device <IP_ADDRESS>`
 
 ### Step 7: (Optional) Install Mitsubishi Climate Proxy via HACS
 
@@ -897,11 +907,15 @@ sub_mode_sensor:
   name: Sub Mode Sensor
 auto_sub_mode_sensor:
   name: Auto Sub Mode Sensor
+jp_ai_auto_sensor:
+  name: JP AI Auto Sensor
 ```
 
 - `stage_sensor` is the actual fan speed of the indoor unit. This is called stage in some documentation. Reported speeds include `IDLE`, `LOW`, `GENTLE`, `MEDIUM`, `MODERATE`, `HIGH` and `DIFFUSE`, named using Mitsubishi documentation conventions.
 
-- `auto_sub_mode_sensor` indicates what actual mode the unit is in when in AUTO. Modes are `AUTO_OFF`, meaning AUTO is disabled, `AUTO_COOL`, meaning AUTO and cooling, `AUTO_HEAT`, meaning AUTO and heating and `AUTO_LEADER`, meaning this unit is the leader in a multi-head unit and selects the heat/cool mode that the others follow.
+- `auto_sub_mode_sensor` indicates what actual mode the unit is in when in AUTO. Common modes include `AUTO_OFF`, `AUTO_COOL`, `AUTO_HEAT`, and `AUTO_LEADER`. Newer units may report `AUTO_INACTIVE`, `AUTO_IDLE`, or `AUTO_ACTIVE`. JP captures use `JP_NON_AUTO` for non-automatic modes and `JP_AUTO` for both Home Assistant AUTO and remote AI Auto; use `jp_ai_auto_sensor` to distinguish the latter.
+
+- `jp_ai_auto_sensor` is a JP ZW-series diagnostic sensor based on the capture-confirmed settings signature. It reports `OFF`, `AUTO`, `AI_AUTO`, or `OTHER`. Plain AUTO was not present in the available capture set, so validate this entity on each model before using it for automation.
 
 - `sub_mode_sensor` indicates additional detail on the current behavior of the unit. The Sub Modes are:
   - `NORMAL` - the unit is in an active mode (heat, cool, dry, etc.) and is either running, or waiting to run
@@ -910,6 +924,26 @@ auto_sub_mode_sensor:
   - `STANDBY` - unit is off, or has been put into a "sleep" state through AUTO operation on another indoor unit
 
 Some examples of how these all fit together: Unit 1 is in AUTO set to 20C and Unit 2 is in AUTO and set to 20C. Unit 1 senses that the room is 24C and tries to enter `AUTO_COOL`. If Unit 2 wants to heat the room it is in, it will enter `STANDBY` (and in the case of a few units tested, this mean it will go to "sleep" as if it is off, but not really be off) making Unit 1 enter `AUTO_LEADER` sub mode. In future releases, it is planned to make the ACTION in HA match these modes. But at this time this is not implemented.
+
+### JP ZW-Series Airflow Controls
+
+JP ZW-series captures confirm independent right and left vertical vanes. Configure `vertical_vane_select` for the right vane and `left_vane_select` for the left vane. The extended horizontal-vane map includes `←−JP`, `SPLIT_4-2`, and `SPLIT_2-2-2`. The airflow-control map includes `EVEN`, `INDIRECT`, `DIRECT`, and `MURANASHI`.
+
+Readback for these values is capture-confirmed. The available captures do not contain vane or airflow SET frames, so validate writes on the target hardware before relying on them in unattended automation.
+
+### Raw Protocol Probe
+
+`raw_probe` is a diagnostic-only option for reverse engineering response codes. Codes must be unique. Arbitrary codes use the configured interval and soft timeout; built-in codes reuse normal component polling and packet logs, so the probe interval does not replace their operational cadence.
+
+```yaml
+climate:
+  - platform: cn105
+    # ... your existing config ...
+    raw_probe:
+      codes: [0x05, 0x10]
+      update_interval: 10s
+      timeout: 500ms
+```
 
 It is also important to note that the Kumo adapter has many more settings that impact the behaviour above (such as thermal fan behaviour) and if you have set these the exact actions the untis take in these modes/submodes/stages is determined by those. Some of these can also be set by remotes and other devices. The setup you have will dictate the exact actions you see. If you have permutations, please share!
 

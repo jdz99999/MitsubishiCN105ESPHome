@@ -1,6 +1,6 @@
 substitutions:
-  name: "hpsejour"
-  friendly_name: Climatisation Séjour Debug
+  name: "hp-living-room"
+  friendly_name: Living Room Climate Debug
 
 esphome:
   name: ${name}
@@ -12,7 +12,7 @@ esp8266:
 
 # mqtt:  
 #   broker: homeassistant.local
-#   username: heatpumpSejour
+#   username: heatpumpLivingRoom
 #   password: !secret mqtt_password
 #   discovery: true
   
@@ -34,7 +34,7 @@ api:
   services:
     - service: reboot
       then:
-        - logger.log: "Redémarrage en cours..."
+        - logger.log: "Restarting..."
         - lambda: |-
             ESP.restart();
     - service: set_remote_temperature
@@ -67,7 +67,7 @@ wifi:
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "Heatpump-Sejour Fallback Hotspot"
+    ssid: "Heatpump-Living-Room Fallback Hotspot"
     password: !secret ota_pwd
 
 captive_portal:
@@ -79,7 +79,7 @@ time:
   - platform: homeassistant
     id: homeassistant_time
 
-# Chemin vers les fichiers C++ personnalisés
+# Path to the custom C++ files
 external_components:
  - source:  
      type: local
@@ -121,10 +121,10 @@ uart:
   tx_pin: GPIO1
   rx_pin: GPIO3
 
-# Configuration pour l'objet 'climate'
+# Climate entity configuration
 climate:
-  - platform: cn105  # remplis avec la plateforme de ton choix
-    name: "Clim Seb"
+  - platform: cn105  # Replace with the platform of your choice.
+    name: "Living Room Climate"
     id: "clim_seb"
     update_interval: 4s    
     hp_uptime_connection_sensor:
@@ -134,7 +134,7 @@ climate:
       name: stage sensor
       use_as_operating_fallback: true
     
-# Configuration pour l'objet 'select' pour choisir un baud_rate
+# Select entity used to choose a baud rate
 select:
   - platform: template 
     name: "Baud Rate Select"
@@ -170,7 +170,7 @@ select:
 #     lambda: |-
 #       return(id(clim_seb).get_compressor_frequency());
 
-# Configuration pour l'objet 'switch' (bouton)
+# Switch entity configuration
 switch:
   - platform: template
     name: "UART Setup Switch"
@@ -180,11 +180,11 @@ switch:
     optimistic: true
     turn_on_action:
       - lambda: |-
-          // Appelle la méthode 'setupUART' quand le switch est activé
+          // Call setupUART when the switch is turned on.
           id(clim_seb).setupUART();
     turn_off_action:
       - lambda: |-
-          // Appelle la méthode 'setupUART' quand le switch est activé
+          // Disconnect UART when the switch is turned off.
           id(clim_seb).disconnectUART();
 
   - platform: template

@@ -174,8 +174,8 @@ void CN105Climate::handleSingleTargetInAutoOrDry(float requested) {
 }
 
 bool CN105Climate::processTemperatureChange(const esphome::climate::ClimateCall& call) {
-    // Vérifier si une température est fournie selon les traits
-    // En modes AUTO/DRY, accepter aussi target_temperature même en dual setpoint
+    // Check whether the traits provide a target temperature.
+    // In AUTO/DRY modes, also accept target_temperature in dual-setpoint mode.
     bool tempHasValue = (call.get_target_temperature_low().has_value() ||
         call.get_target_temperature_high().has_value() || call.get_target_temperature().has_value());
     /*
@@ -379,7 +379,7 @@ void CN105Climate::controlTemperature() {
     float setting;
 
 
-    // Utiliser la logique appropriée selon les traits
+    // Use the appropriate logic for the configured traits.
     switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT_COOL:
         // Mode HEAT_COOL (new): displays 2 sliders
@@ -587,7 +587,7 @@ void CN105Climate::updateAction() {
     case climate::CLIMATE_MODE_HEAT_COOL:
         if (this->traits().supports_mode(climate::CLIMATE_MODE_HEAT) &&
             this->traits().supports_mode(climate::CLIMATE_MODE_COOL)) {
-            // Logique Deadband pour HEAT_COOL
+            // Deadband logic for HEAT_COOL.
             if (this->getCurrentTemperature() >= this->getTargetTemperatureHigh()) {
                 this->setActionIfOperatingTo(climate::CLIMATE_ACTION_COOLING);
             } else if (this->getCurrentTemperature() <= this->getTargetTemperatureLow()) {
@@ -737,9 +737,9 @@ void CN105Climate::set_remote_temperature(float setting) {
         return;
     }
 
-    // Toujours renvoyer la température distante lorsqu’un nouvel échantillon arrive,
-    // même si la valeur n’a pas changé, afin d’éviter que l’unité Mitsubishi
-    // ne repasse sur la sonde interne faute de mise à jour régulière (#474).
+    // Always resend the remote temperature when a new sample arrives, even if
+    // the value is unchanged, to prevent the Mitsubishi unit from falling back
+    // to its internal sensor when regular updates stop (#474).
     this->remoteTemperature_ = setting;
     this->shouldSendExternalTemperature_ = true;
     ESP_LOGD(LOG_REMOTE_TEMP, "setting remote temperature to %f", this->remoteTemperature_);

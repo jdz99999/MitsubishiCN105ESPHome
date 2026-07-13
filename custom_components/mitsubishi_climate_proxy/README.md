@@ -58,9 +58,9 @@ If you prefer to define your entities in YAML, you can still add this to your `c
 
 climate:
   - platform: mitsubishi_climate_proxy
-    source_entity: climate.chambre_esphome     # The ID of your real ESPHome entity
-    name: Chambre Hybrid                       # The name of the new entity to use in your Dashboard
-    horizontal_vane_entity: select.chambre_horizontal_vane  # (Optional) WideVane select entity
+    source_entity: climate.bedroom_esphome     # The ID of your real ESPHome entity
+    name: Bedroom Hybrid                       # The name of the new entity to use in your Dashboard
+    horizontal_vane_entity: select.bedroom_horizontal_vane  # (Optional) WideVane select entity
 ```
 
 ## Dashboard Setup

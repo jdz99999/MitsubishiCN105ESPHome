@@ -43,7 +43,7 @@ jobs:
         variant: 
           - examples/root-configs/esp32-test
           - examples/root-configs/hp-debug
-          - examples/root-configs/hp-sejour
+          - examples/root-configs/hp-living-room
           - examples/m5stack-atoms3/atom-m5
           - examples/xiao-esp32s3/heatpump-xiaoESP32S3
           - examples/modular-hvac/hvac-sample
@@ -64,7 +64,7 @@ jobs:
           wifi_ssid4 wifi_password4
           iot_ssid iot_password iot_domain fallback_password
           broker m5_login m5_password hvac_ota
-        enc_keys: encryption_key_sejour encryption_key api_key hvac_api
+        enc_keys: encryption_key_living_room encryption_key api_key hvac_api
       run: |
         for key in $keys ; do
           if [ "$key" = "iot_domain" ]; then

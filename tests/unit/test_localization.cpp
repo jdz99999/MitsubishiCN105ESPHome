@@ -38,6 +38,15 @@ TEST(FahrenheitSupportTest, OffMode_Passthrough) {
     }
 }
 
+TEST(FahrenheitSupportTest, NanPassesThroughAllModes) {
+    FahrenheitSupport fs;
+    for (FahrenheitMode mode : {FahrenheitMode::OFF, FahrenheitMode::STANDARD, FahrenheitMode::ALT}) {
+        fs.setUseFahrenheitSupportMode(mode);
+        EXPECT_TRUE(std::isnan(fs.normalizeUiTemperatureToHeatpumpTemperature(NAN)));
+        EXPECT_TRUE(std::isnan(fs.normalizeHeatpumpTemperatureToUiTemperature(NAN)));
+    }
+}
+
 // ========================================================
 // Storage round-trip cycle: for every whole-Fahrenheit UI value,
 // one get/set cycle returns the same UI value (no drift), and a

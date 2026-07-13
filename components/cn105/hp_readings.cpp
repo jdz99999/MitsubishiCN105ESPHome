@@ -89,8 +89,10 @@ void CN105Climate::getPowerFromResponsePacket() {
     ESP_LOGD("Decoder", "[0x09 is sub modes]");
 
     heatpumpSettings receivedSettings{};
-    ESP_LOGD(LOG_RAW_PROBE_TAG, "0x09 candidates: data[3]=0x%02X data[4]=0x%02X data[5]=0x%02X data[6]=0x%02X data[7]=0x%02X data[8]=0x%02X data[9]=0x%02X data[10]=0x%02X data[11]=0x%02X data[12]=0x%02X data[13]=0x%02X data[14]=0x%02X data[15]=0x%02X",
-        data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
+    if (this->isRawProbeCode(0x09)) {
+        ESP_LOGD(LOG_RAW_PROBE_TAG, "0x09 candidates: data[3]=0x%02X data[4]=0x%02X data[5]=0x%02X data[6]=0x%02X data[7]=0x%02X data[8]=0x%02X data[9]=0x%02X data[10]=0x%02X data[11]=0x%02X data[12]=0x%02X data[13]=0x%02X data[14]=0x%02X data[15]=0x%02X",
+            data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
+    }
 
     // Use std::optional lookups — keep previous value on unknown bytes
     auto stage_opt = cn105_protocol::lookup_value_opt(STAGE_MAP, STAGE, 7, data[4]);
@@ -113,7 +115,7 @@ void CN105Climate::getPowerFromResponsePacket() {
             : SUB_MODE_MAP[0];  // default to "NORMAL" when no prior value exists
     }
 
-    auto auto_sub_mode_opt = cn105_protocol::lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, 7, data[5]);
+    auto auto_sub_mode_opt = cn105_protocol::lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, data[5]);
     if (auto_sub_mode_opt) {
         receivedSettings.auto_sub_mode = *auto_sub_mode_opt;
     } else {
@@ -187,7 +189,7 @@ void CN105Climate::getSettingsFromResponsePacket() {
     if (this->Jp_ai_auto_sensor_ != nullptr) {
         const bool power_on = receivedSettings.power != nullptr && strcmp(receivedSettings.power, "ON") == 0;
         const bool is_auto = receivedSettings.mode != nullptr && strcmp(receivedSettings.mode, "AUTO") == 0;
-        const bool is_zw_ai_auto = power_on && is_auto && data[13] == 0x0A && data[14] == 0x02;
+        const bool is_zw_ai_auto = cn105_protocol::is_jp_ai_auto(power_on, is_auto, data[13], data[14]);
         const char* jp_ai_auto_state = "OTHER";
         if (!power_on) {
             jp_ai_auto_state = "OFF";
@@ -347,10 +349,12 @@ void CN105Climate::getRoomTemperatureFromResponsePacket() {
         receivedStatus.outsideAirTemperature = NAN;
     }
 
-    const float jp_oat_no_offset = data[4] / 2.0f;
-    const float jp_oat_minus_8 = (data[4] - 8) / 2.0f;
-    ESP_LOGD(LOG_RAW_PROBE_TAG, "0x03 candidates: room_a_data[3]=0x%02X room_b_data[6]=0x%02X oat_current_data[5]=0x%02X oat_jp_data[4]=0x%02X jp_no_offset=%.1f jp_minus_8=%.1f data[7]=0x%02X data[8]=0x%02X data[13]=0x%02X",
-        data[3], data[6], data[5], data[4], jp_oat_no_offset, jp_oat_minus_8, data[7], data[8], data[13]);
+    if (this->isRawProbeCode(0x03)) {
+        const float jp_oat_no_offset = data[4] / 2.0f;
+        const float jp_oat_minus_8 = (data[4] - 8) / 2.0f;
+        ESP_LOGD(LOG_RAW_PROBE_TAG, "0x03 candidates: room_a_data[3]=0x%02X room_b_data[6]=0x%02X oat_current_data[5]=0x%02X oat_jp_data[4]=0x%02X jp_no_offset=%.1f jp_minus_8=%.1f data[7]=0x%02X data[8]=0x%02X data[13]=0x%02X",
+            data[3], data[6], data[5], data[4], jp_oat_no_offset, jp_oat_minus_8, data[7], data[8], data[13]);
+    }
 
     if (data[6] != 0x00) {
         int temp = data[6];
@@ -407,8 +411,10 @@ void CN105Climate::getOperatingAndCompressorFreqFromResponsePacket() {
     // ?? = unknown bytes that appear to have a fixed/constant value
     heatpumpStatus receivedStatus{};
     ESP_LOGD("Decoder", "[0x06 is status]");
-    ESP_LOGD(LOG_RAW_PROBE_TAG, "0x06 candidates: comp_data[3]=0x%02X operating_data[4]=0x%02X input_hi_data[5]=0x%02X input_lo_or_stage_data[6]=0x%02X energy_hi_data[7]=0x%02X energy_lo_data[8]=0x%02X data[9]=0x%02X data[10]=0x%02X data[11]=0x%02X data[12]=0x%02X data[13]=0x%02X data[14]=0x%02X data[15]=0x%02X",
-        data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
+    if (this->isRawProbeCode(0x06)) {
+        ESP_LOGD(LOG_RAW_PROBE_TAG, "0x06 candidates: comp_data[3]=0x%02X operating_data[4]=0x%02X input_hi_data[5]=0x%02X input_lo_or_stage_data[6]=0x%02X energy_hi_data[7]=0x%02X energy_lo_data[8]=0x%02X data[9]=0x%02X data[10]=0x%02X data[11]=0x%02X data[12]=0x%02X data[13]=0x%02X data[14]=0x%02X data[15]=0x%02X",
+            data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
+    }
     //this->last_received_packet_sensor->publish_state("0x62-> 0x06: Data -> Heatpump Status");
 
     // reset counter (because a reply indicates it is connected)
@@ -482,7 +488,7 @@ void CN105Climate::getErrorInfoFromResponsePacket() {
         uint8_t error_sub = this->data[5];
         // Bit 7 (0x80) is a protocol status flag ("error reporting available"),
         // not an actual error code. Use lower 7 bits for real error detection.
-        uint8_t error_code = error_raw & 0x7F;
+        uint8_t error_code = cn105_protocol::decode_error_code(error_raw);
         if (error_code == 0x00 && error_sub == 0x00) {
             this->error_code_sensor_->publish_state("No Error");
         } else {
@@ -495,12 +501,12 @@ void CN105Climate::getErrorInfoFromResponsePacket() {
 
 void CN105Climate::getDataFromResponsePacket() {
 
-    // D'abord, laissons l'orchestrateur traiter les codes connus
+    // Let the request scheduler handle registered response codes first.
     const uint8_t code = this->data[0];
     if (this->scheduler_.process_response(code)) {
         return;
     }
-    // Sinon, switch pour les cas non gÃÂ©rÃÂ©s par l'orchestrateur
+    // Fall back to response codes that are not registered with the scheduler.
     switch (code) {
 
     case 0x04:
@@ -558,7 +564,7 @@ void CN105Climate::processCommand() {
         break;
     case 0x7a:  // Connection success (User / standard)
     case 0x7b:  // Connection success (Installer / extended)
-        // Log en INFO sur le tag dÃÂ©diÃÂ©, dÃÂ©tails en DEBUG via hpPacketDebug
+        // Log the event on its INFO tag and packet details through hpPacketDebug.
         ESP_LOGI(LOG_CONN_TAG, "--> Heatpump did reply: connection success (%s, 0x%02X)! <--",
             (this->parser_.command() == 0x7b) ? "Installer" : "User",
             this->parser_.command());

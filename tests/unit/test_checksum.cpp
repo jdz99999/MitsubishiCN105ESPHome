@@ -1,5 +1,5 @@
-/// test_checksum.cpp — Tests de non-régression pour checkSum()
-/// Deps: cn105_types.h (constantes CONNECT), esphome_stubs.h
+/// test_checksum.cpp - Regression tests for checkSum().
+/// Deps: cn105_types.h (CONNECT constants), esphome_stubs.h
 #include <gtest/gtest.h>
 #include "esphome_stubs.h"
 #include "cn105_types.h"

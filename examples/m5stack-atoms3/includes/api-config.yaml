@@ -1,7 +1,7 @@
 services:    
     - service: reboot
       then:
-        - logger.log: "Redémarrage en cours..."
+        - logger.log: "Restarting..."
         - lambda: |-
             esp_restart();
     - service: set_remote_temperature

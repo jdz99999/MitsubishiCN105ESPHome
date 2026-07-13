@@ -1,4 +1,4 @@
-/// esphome_stubs.h — Stubs minimaux pour compiler les fonctions CN105 hors ESPHome.
+/// esphome_stubs.h — Minimal stubs for compiling CN105 functions without ESPHome.
 /// Deps: <cstdio>, <cstdint>, <cstring>, <cmath>, <string>, <functional>
 #pragma once
 
@@ -9,7 +9,7 @@
 #include <string>
 #include <functional>
 
-// Stub des macros de log ESPHome → no-op en mode test
+// ESPHome logging macro stubs are no-ops in unit tests.
 #define ESP_LOGD(tag, fmt, ...) ((void)0)
 #define ESP_LOGI(tag, fmt, ...) ((void)0)
 #define ESP_LOGW(tag, fmt, ...) ((void)0)

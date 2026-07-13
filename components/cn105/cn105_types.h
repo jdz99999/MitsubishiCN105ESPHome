@@ -133,8 +133,12 @@ static const char* SUB_MODE_MAP[6] = { "NORMAL", "WARMUP", "DEFROST", "PREHEAT",
 // These labels are distinct from the older AUTO_COOL/AUTO_HEAT/AUTO_LEADER
 // labels which appear to belong to a different protocol revision (older units
 // where this byte was a 4-state enum rather than a bitfield).
-static const uint8_t AUTO_SUB_MODE[7] = { 0x00, 0x01, 0x02, 0x03, 0x40, 0x41, 0x43 };
-static const char* AUTO_SUB_MODE_MAP[7] = { "AUTO_OFF", "AUTO_COOL", "AUTO_HEAT", "AUTO_LEADER", "AUTO_INACTIVE", "AUTO_IDLE", "AUTO_ACTIVE" };
+static const int AUTO_SUB_MODE_LEN = 9;
+static const uint8_t AUTO_SUB_MODE[AUTO_SUB_MODE_LEN] = { 0x00, 0x01, 0x02, 0x03, 0x08, 0x18, 0x40, 0x41, 0x43 };
+static const char* AUTO_SUB_MODE_MAP[AUTO_SUB_MODE_LEN] = {
+    "AUTO_OFF", "AUTO_COOL", "AUTO_HEAT", "AUTO_LEADER", "JP_NON_AUTO", "JP_AUTO",
+    "AUTO_INACTIVE", "AUTO_IDLE", "AUTO_ACTIVE"
+};
 
 static const int TIMER_INCREMENT_MINUTES = 10;
 

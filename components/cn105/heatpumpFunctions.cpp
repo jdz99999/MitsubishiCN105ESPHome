@@ -3,7 +3,7 @@
 #include "Globals.h"
 
 using namespace esphome;
-//#region heatpump_functions fonctions clim
+//#region heatpump_functions climate functions
 
 void CN105Climate::functionsArrived() {
 

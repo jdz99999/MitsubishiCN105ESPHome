@@ -70,8 +70,8 @@ sensor:
     update_interval: 60s
 
   - platform: homeassistant
-    id: ha_cdeg_sejour_et_cuisine
-    entity_id: sensor.temperature_sejour
+    id: ha_cdeg_living_room_and_kitchen
+    entity_id: sensor.temperature_living_room
     internal: true
 
 
@@ -83,13 +83,13 @@ text_sensor:
   - platform: wifi_info
     ip_address:
       name: ${name} IP
-      id: wifi_ip  # ID pour référence dans l'écran
+      id: wifi_ip  # ID referenced by the display
     ssid:
       name: ${name} SSID
-      id: wifi_ssid  # ID pour référence dans l'écran
+      id: wifi_ssid  # ID referenced by the display
     bssid:
       name: ${name} BSSID
-      id: wifi_bssid  # ID pour référence dans l'écran
+      id: wifi_bssid  # ID referenced by the display
 
   - platform: debug
     device:

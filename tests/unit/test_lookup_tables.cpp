@@ -1,7 +1,8 @@
-/// test_lookup_tables.cpp — Tests de non-régression pour lookupByteMapValue/Index
+/// test_lookup_tables.cpp - Regression tests for lookupByteMapValue/Index.
 /// Deps: cn105_types.h (tables MODE, FAN, VANE, TEMP, etc.), esphome_stubs.h
 #include <gtest/gtest.h>
 #include "esphome_stubs.h"
+#include "cn105_protocol.h"
 #include "cn105_types.h"
 
 // Standalone reimplementations of lookup functions (copy from utils.cpp)
@@ -47,12 +48,7 @@ static int lookupByteMapIndex_int(const int valuesMap[], int len, int lookupValu
 static int lookupByteMapIndex_str(const char* valuesMap[], int len,
                                    const char* lookupValue,
                                    const char* debugInfo = "") {
-    for (int i = 0; i < len; i++) {
-        if (strcasecmp(valuesMap[i], lookupValue) == 0) {
-            return i;
-        }
-    }
-    return -1;
+    return cn105_protocol::lookup_index(valuesMap, len, lookupValue);
 }
 
 // ---- MODE Tests ----
@@ -190,15 +186,25 @@ TEST(LookupTablesTest, VaneTableConsistency_AllBytesUnique) {
 // ---- WIDEVANE Tests ----
 
 TEST(LookupTablesTest, WideVaneByteToString_Swing) {
-    EXPECT_STREQ(lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, 8, 0x0c), "SWING");
+    EXPECT_STREQ(lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, WIDEVANE_LEN, 0x0c), "SWING");
+}
+
+TEST(LookupTablesTest, WideVaneByteToString_JpPositions) {
+    EXPECT_STREQ(lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, WIDEVANE_LEN, 0x06), "←−JP");
+    EXPECT_STREQ(lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, WIDEVANE_LEN, 0x07), "SPLIT_4-2");
+    EXPECT_STREQ(lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, WIDEVANE_LEN, 0x09), "SPLIT_2-2-2");
 }
 
 // ---- AIRFLOW CONTROL Tests ----
 
 TEST(LookupTablesTest, AirflowControlByteToString_Even) {
-    EXPECT_STREQ(lookupByteMapValue(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 3, 0x00), "EVEN");
+    EXPECT_STREQ(lookupByteMapValue(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, 0x00), "EVEN");
 }
 
 TEST(LookupTablesTest, AirflowControlByteToString_Direct) {
-    EXPECT_STREQ(lookupByteMapValue(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 3, 0x02), "DIRECT");
+    EXPECT_STREQ(lookupByteMapValue(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, 0x02), "DIRECT");
+}
+
+TEST(LookupTablesTest, AirflowControlByteToString_Muranashi) {
+    EXPECT_STREQ(lookupByteMapValue(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, 0x03), "MURANASHI");
 }

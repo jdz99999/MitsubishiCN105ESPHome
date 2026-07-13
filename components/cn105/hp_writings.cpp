@@ -15,14 +15,14 @@ void CN105Climate::sendFirstConnectionPacket() {
         uint8_t packet[CONNECT_LEN];
         memcpy(packet, CONNECT, CONNECT_LEN);
 
-        // Choix du mode de handshake: standard (0x5A) ou installateur (0x5B)
+        // Select the standard (0x5A) or installer (0x5B) handshake.
         packet[1] = this->installer_mode_effective_ ? 0x5B : 0x5A;
-        // CONNECT a un checksum pré-calculé dans la constante; si on modifie l'octet commande, on doit le recalculer.
+        // CONNECT has a precomputed checksum; recalculate it after changing the command byte.
         packet[CONNECT_LEN - 1] = checkSum(packet, CONNECT_LEN - 1);
 
-        ESP_LOGI(LOG_CONN_TAG, "Envoi du paquet de connexion en mode %s (0x%02X)...", this->installer_mode_effective_ ? "Installateur" : "Standard", packet[1]);
+        ESP_LOGI(LOG_CONN_TAG, "Sending connection packet in %s mode (0x%02X)...", this->installer_mode_effective_ ? "Installer" : "Standard", packet[1]);
 
-        // Détails des octets en DEBUG sur le tag de connexion
+        // Log packet bytes at DEBUG level on the connection tag.
         this->hpPacketDebug(packet, CONNECT_LEN, LOG_CONN_TAG);
 
         this->writePacket(packet, CONNECT_LEN, false);      // checkIsActive=false because it's the first packet and we don't have any reply yet
@@ -35,8 +35,8 @@ void CN105Climate::sendFirstConnectionPacket() {
         this->set_timeout("checkFirstConnection", 10000, [this]() {
             if (!this->isHeatpumpConnected()) {
                 ESP_LOGE(LOG_CONN_TAG, "--> Heatpump did not reply: NOT CONNECTED <--");
-                // Fallback automatique: si le mode installateur est demandé mais que la PAC ignore 0x5B,
-                // on retente une fois en mode standard (0x5A) pour préserver la connectivité.
+                // If installer mode is requested but the heat pump ignores 0x5B,
+                // retry once with the standard 0x5A handshake.
                 if (this->installer_mode_ && this->installer_mode_effective_ && !this->installer_mode_fallback_done_) {
                     this->installer_mode_effective_ = false;
                     this->installer_mode_fallback_done_ = true;
@@ -164,9 +164,6 @@ const char* CN105Climate::getLeftVaneSetting() {
 
 const char* CN105Climate::getWideVaneSetting() {
     if (this->wantedSettings.wideVane) {
-        if (strcmp(this->wantedSettings.wideVane, lookupByteMapValue(WIDEVANE_MAP, WIDEVANE, WIDEVANE_LEN, 0x80 & 0x0F)) == 0 && !this->currentSettings.iSee) {
-            this->wantedSettings.wideVane = this->currentSettings.wideVane;
-        }
         return this->wantedSettings.wideVane;
     } else {
         return this->currentSettings.wideVane;
@@ -227,61 +224,70 @@ void CN105Climate::createPacket(uint8_t* packet) {
     if (this->wantedSettings.power != nullptr) {
         ESP_LOGD(TAG, "power -> %s", getPowerSetting());
         int idx = lookupByteMapIndex(POWER_MAP, 2, getPowerSetting(), "power (write)");
-        if (idx >= 0) { packet[8] = POWER[idx]; packet[6] += CONTROL_PACKET_1[0]; } else { ESP_LOGW(TAG, "Ignoring invalid power setting while building packet"); }
+        if (idx >= 0) { packet[8] = POWER[idx]; packet[6] |= CONTROL_PACKET_1[0]; } else { ESP_LOGW(TAG, "Ignoring invalid power setting while building packet"); }
     }
 
     if (this->wantedSettings.mode != nullptr) {
         ESP_LOGD(TAG, "heatpump mode -> %s", getModeSetting());
         int idx = lookupByteMapIndex(MODE_MAP, 5, getModeSetting(), "mode (write)");
-        if (idx >= 0) { packet[9] = MODE[idx]; packet[6] += CONTROL_PACKET_1[1]; } else { ESP_LOGW(TAG, "Ignoring invalid mode setting while building packet"); }
+        if (idx >= 0) { packet[9] = MODE[idx]; packet[6] |= CONTROL_PACKET_1[1]; } else { ESP_LOGW(TAG, "Ignoring invalid mode setting while building packet"); }
     }
 
     if (wantedSettings.temperature != -1) {
         if (!use_temperature_encoding_b_) {
             ESP_LOGD(TAG, "temperature (tempmode is false) -> %f", getTemperatureSetting());
             int idx = lookupByteMapIndex(TEMP_MAP, 16, getTemperatureSetting(), "temperature (write)");
-            if (idx >= 0) { packet[10] = TEMP[idx]; packet[6] += CONTROL_PACKET_1[2]; } else { ESP_LOGW(TAG, "Ignoring invalid temperature setting while building packet"); }
+            if (idx >= 0) { packet[10] = TEMP[idx]; packet[6] |= CONTROL_PACKET_1[2]; } else { ESP_LOGW(TAG, "Ignoring invalid temperature setting while building packet"); }
         } else {
             ESP_LOGD(TAG, "temperature (tempmode is true) -> %f", getTemperatureSetting());
             float temp = (getTemperatureSetting() * 2) + 128;
             packet[19] = (int)temp;
-            packet[6] += CONTROL_PACKET_1[2];
+            packet[6] |= CONTROL_PACKET_1[2];
         }
     }
 
     if (this->wantedSettings.fan != nullptr) {
         ESP_LOGD(TAG, "heatpump fan -> %s", getFanSpeedSetting());
         int idx = lookupByteMapIndex(FAN_MAP, 6, getFanSpeedSetting(), "fan (write)");
-        if (idx >= 0) { packet[11] = FAN[idx]; packet[6] += CONTROL_PACKET_1[3]; } else { ESP_LOGW(TAG, "Ignoring invalid fan setting while building packet"); }
+        if (idx >= 0) { packet[11] = FAN[idx]; packet[6] |= CONTROL_PACKET_1[3]; } else { ESP_LOGW(TAG, "Ignoring invalid fan setting while building packet"); }
     }
 
-    if (this->wantedSettings.vane != nullptr) {
-        ESP_LOGD(TAG, "heatpump vane -> %s", getVaneSetting());
-        int idx = lookupByteMapIndex(VANE_MAP, 7, getVaneSetting(), "vane (write)");
-        if (idx >= 0) { packet[12] = VANE[idx]; packet[6] += CONTROL_PACKET_1[4]; } else { ESP_LOGW(TAG, "Ignoring invalid vane setting while building packet"); }
-    }
+    if (this->wantedSettings.vane != nullptr || this->wantedSettings.left_vane != nullptr) {
+        std::optional<uint8_t> right_vane_byte;
+        std::optional<uint8_t> left_vane_byte;
 
-    if (this->wantedSettings.left_vane != nullptr) {
-        ESP_LOGD(TAG, "heatpump left vane -> %s", getLeftVaneSetting());
-        int idx = lookupByteMapIndex(LEFT_VANE_MAP, 7, getLeftVaneSetting(), "left_vane (write)");
-        if (idx >= 0) {
-            packet[20] = LEFT_VANE[idx];
-            packet[6] += CONTROL_PACKET_1[4];
-            if (this->wantedSettings.vane == nullptr && this->currentSettings.vane != nullptr) {
-                int right_idx = lookupByteMapIndex(VANE_MAP, 7, getVaneSetting(), "vane preserve (write)");
-                if (right_idx >= 0) {
-                    packet[12] = VANE[right_idx];
-                }
+        const char* right_vane = getVaneSetting();
+        if (right_vane != nullptr) {
+            int right_idx = lookupByteMapIndex(VANE_MAP, 7, right_vane, "vane (write)");
+            if (right_idx >= 0) {
+                right_vane_byte = VANE[right_idx];
+                ESP_LOGD(TAG, "heatpump right vane -> %s", right_vane);
+            } else {
+                ESP_LOGW(TAG, "Ignoring invalid right vane setting while building packet");
             }
-        } else { ESP_LOGW(TAG, "Ignoring invalid left_vane setting while building packet"); }
+        }
+
+        const char* left_vane = getLeftVaneSetting();
+        if (left_vane != nullptr) {
+            int left_idx = lookupByteMapIndex(LEFT_VANE_MAP, 7, left_vane, "left_vane (write)");
+            if (left_idx >= 0) {
+                left_vane_byte = LEFT_VANE[left_idx];
+                ESP_LOGD(TAG, "heatpump left vane -> %s", left_vane);
+            } else {
+                ESP_LOGW(TAG, "Ignoring invalid left vane setting while building packet");
+            }
+        }
+
+        cn105_protocol::apply_vertical_vane_control(packet, right_vane_byte, left_vane_byte);
     }
 
     if (this->wantedSettings.wideVane != nullptr) {
         ESP_LOGD(TAG, "heatpump widevane -> %s", getWideVaneSetting());
         int idx = lookupByteMapIndex(WIDEVANE_MAP, WIDEVANE_LEN, getWideVaneSetting(), "wideVane (write)");
         if (idx >= 0) {
-            packet[18] = WIDEVANE[idx] | (this->wideVaneAdj ? 0x80 : 0x00);
-            packet[7] += CONTROL_PACKET_2[0];
+            const bool airflow_control = strcmp(getWideVaneSetting(), WIDEVANE_MAP[WIDEVANE_LEN - 1]) == 0;
+            packet[18] = cn105_protocol::encode_wide_vane(WIDEVANE[idx], this->wideVaneAdj, airflow_control);
+            packet[7] |= CONTROL_PACKET_2[0];
 
 
             switch (this->vane_type_) {
@@ -474,7 +480,7 @@ void CN105Climate::buildAndSendRequestsInfoPackets() {
         ESP_LOGV("CONTROL_WANTED_SETTINGS", "hasChanged is %s", wantedSettings.hasChanged ? "true" : "false");
         this->loopCycle.cycleStarted();
         this->nbCycles_++;
-        // Envoie la première requête activable (la liste est enregistrée une fois au constructeur)
+        // Send the first eligible request from the queue registered during setup.
         this->scheduler_.send_next_after(0x00); // 0x00 -> start, pick first eligible
     } else {
         this->reconnectIfConnectionLost();
@@ -587,28 +593,33 @@ void CN105Climate::sendWantedRunStates() {
     packet[5] = 0x08;
     if (this->wantedRunStates.airflow_control != nullptr) {
         ESP_LOGD(TAG, "airflow control -> %s", getAirflowControlSetting());
-        packet[11] = AIRFLOW_CONTROL[lookupByteMapIndex(AIRFLOW_CONTROL_MAP, 4, getAirflowControlSetting(), "run state (write)")];
-        packet[6] += RUN_STATE_PACKET_1[4];
+        int idx = lookupByteMapIndex(AIRFLOW_CONTROL_MAP, 4, getAirflowControlSetting(), "run state (write)");
+        if (idx >= 0) {
+            packet[11] = AIRFLOW_CONTROL[idx];
+            packet[6] |= RUN_STATE_PACKET_1[4];
+        } else {
+            ESP_LOGW(TAG, "Ignoring invalid airflow control setting while building packet");
+        }
     }
     if (this->wantedRunStates.air_purifier > -1) {
         if (getAirPurifierRunState() != currentRunStates.air_purifier) {
             ESP_LOGI(TAG, "air purifier switch state -> %s", getAirPurifierRunState() ? "ON" : "OFF");
             packet[17] = getAirPurifierRunState() ? 0x01 : 0x00;
-            packet[7] += RUN_STATE_PACKET_2[1];
+            packet[7] |= RUN_STATE_PACKET_2[1];
         }
     }
     if (this->wantedRunStates.night_mode > -1) {
         if (getNightModeRunState() != currentRunStates.night_mode) {
             ESP_LOGI(TAG, "night mode switch state -> %s", this->getNightModeRunState() ? "ON" : "OFF");
             packet[18] = getNightModeRunState() ? 0x01 : 0x00;
-            packet[7] += RUN_STATE_PACKET_2[2];
+            packet[7] |= RUN_STATE_PACKET_2[2];
         }
     }
     if (this->wantedRunStates.circulator > -1) {
         if (getCirculatorRunState() != currentRunStates.circulator) {
             ESP_LOGI(TAG, "circulator switch state -> %s", getCirculatorRunState() ? "ON" : "OFF");
             packet[19] = getCirculatorRunState() ? 0x01 : 0x00;
-            packet[7] += RUN_STATE_PACKET_2[3];
+            packet[7] |= RUN_STATE_PACKET_2[3];
         }
     }
 

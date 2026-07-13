@@ -4,11 +4,29 @@
 #pragma once
 
 #include <cstdint>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <optional>
 
 namespace cn105_protocol {
+
+inline int ascii_casecmp(const char* lhs, const char* rhs) {
+    if (lhs == nullptr || rhs == nullptr) {
+        return lhs == rhs ? 0 : (lhs == nullptr ? -1 : 1);
+    }
+    while (*lhs != '\0' && *rhs != '\0') {
+        const auto left = static_cast<unsigned char>(*lhs);
+        const auto right = static_cast<unsigned char>(*rhs);
+        const int difference = std::tolower(left) - std::tolower(right);
+        if (difference != 0) {
+            return difference;
+        }
+        ++lhs;
+        ++rhs;
+    }
+    return static_cast<unsigned char>(*lhs) - static_cast<unsigned char>(*rhs);
+}
 
 // ════════════════════════════════════════════════════════════════
 // Checksum
@@ -25,6 +43,40 @@ inline uint8_t checksum(const uint8_t* bytes, int len) {
         sum += bytes[i];
     }
     return (0xfc - sum) & 0xff;
+}
+
+/// Return the actual error code after removing the CN105 status flag.
+inline uint8_t decode_error_code(uint8_t raw_status) {
+    return raw_status & 0x7f;
+}
+
+/// Identify the JP ZW-series AI AUTO signature in a settings response.
+inline bool is_jp_ai_auto(bool power_on, bool auto_mode, uint8_t data_13, uint8_t data_14) {
+    return power_on && auto_mode && data_13 == 0x0a && data_14 == 0x02;
+}
+
+/// Encode a wide-vane position. Airflow-control mode always requires bit 7.
+inline uint8_t encode_wide_vane(uint8_t position, bool adjustment, bool airflow_control) {
+    return position | ((adjustment || airflow_control) ? 0x80 : 0x00);
+}
+
+/// Apply the shared vertical-vane control flag and preserve both vane bytes.
+inline bool apply_vertical_vane_control(
+    uint8_t* packet,
+    std::optional<uint8_t> right_vane,
+    std::optional<uint8_t> left_vane
+) {
+    if (!right_vane && !left_vane) {
+        return false;
+    }
+    if (right_vane) {
+        packet[12] = *right_vane;
+    }
+    if (left_vane) {
+        packet[20] = *left_vane;
+    }
+    packet[6] |= 0x10;
+    return true;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -122,8 +174,11 @@ inline int lookup_index(const int valuesMap[], int len, int lookupValue) {
 /// @param lookupValue The string to search for.
 /// @return            Index of the match, or -1 if not found.
 inline int lookup_index(const char* valuesMap[], int len, const char* lookupValue) {
+    if (lookupValue == nullptr) {
+        return -1;
+    }
     for (int i = 0; i < len; i++) {
-        if (strcasecmp(valuesMap[i], lookupValue) == 0) {
+        if (ascii_casecmp(valuesMap[i], lookupValue) == 0) {
             return i;
         }
     }
@@ -176,8 +231,11 @@ inline std::optional<int> lookup_index_opt(const int valuesMap[], int len, int l
 /// @param lookupValue The string to search for.
 /// @return            Index of the match, or std::nullopt if not found.
 inline std::optional<int> lookup_index_opt(const char* valuesMap[], int len, const char* lookupValue) {
+    if (lookupValue == nullptr) {
+        return std::nullopt;
+    }
     for (int i = 0; i < len; i++) {
-        if (strcasecmp(valuesMap[i], lookupValue) == 0) {
+        if (ascii_casecmp(valuesMap[i], lookupValue) == 0) {
             return i;
         }
     }

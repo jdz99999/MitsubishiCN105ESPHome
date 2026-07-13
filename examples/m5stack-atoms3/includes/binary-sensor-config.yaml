@@ -22,7 +22,7 @@ binary_sensor:
         # - display_menu.show: test_graphical_display_menu
           - lambda: |-
               id(current_page)++;
-              if (id(current_page) >= 3) { // Nombre de pages (index 0 et 1 dans cet exemple)
+              if (id(current_page) >= 3) { // Number of pages (indices 0 and 1 in this example)
                 id(current_page) = 0;
               }
               if (id(current_page) == 0) {

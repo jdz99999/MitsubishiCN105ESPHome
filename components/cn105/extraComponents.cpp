@@ -25,7 +25,7 @@ void CN105Climate::set_vertical_vane_select(
 
     this->vertical_vane_select_->setCallbackFunction([this](const char* setting) {
 
-        ESP_LOGD("EVT", "vane.control() -> Demande un chgt de rÃ©glage de la vane: %s", setting);
+        ESP_LOGD("EVT", "vane.control() -> requested right vane setting: %s", setting);
 
         this->setVaneSetting(setting);
         this->wantedSettings.hasChanged = true;
@@ -46,7 +46,7 @@ void CN105Climate::set_left_vane_select(
 
     this->left_vane_select_->setCallbackFunction([this](const char* setting) {
 
-        ESP_LOGD("EVT", "left_vane.control() -> Demande un chgt de rÃ©glage de la vane gauche: %s", setting);
+        ESP_LOGD("EVT", "left_vane.control() -> requested left vane setting: %s", setting);
 
         this->setLeftVaneSetting(setting);
         this->wantedSettings.hasChanged = true;
@@ -82,7 +82,7 @@ void CN105Climate::set_horizontal_vane_select(
     this->horizontal_vane_select_->traits.set_options(fixedOptions);
 
     this->horizontal_vane_select_->setCallbackFunction([this](const char* setting) {
-        ESP_LOGD("EVT", "wideVane.control() -> Demande un chgt de rÃ©glage de la wideVane: %s", setting);
+        ESP_LOGD("EVT", "wideVane.control() -> requested wide-vane setting: %s", setting);
 
         this->setWideVaneSetting(setting);
         this->wantedSettings.hasChanged = true;
@@ -97,8 +97,8 @@ void CN105Climate::set_airflow_control_select(
     this->airflow_control_select_ = airflow_control_select;
 
     this->airflow_control_select_->traits.set_options({
-    AIRFLOW_CONTROL_MAP[0], AIRFLOW_CONTROL_MAP[1], AIRFLOW_CONTROL_MAP[2], AIRFLOW_CONTROL_MAP[3]
-    });;
+        AIRFLOW_CONTROL_MAP[0], AIRFLOW_CONTROL_MAP[1], AIRFLOW_CONTROL_MAP[2], AIRFLOW_CONTROL_MAP[3]
+    });
 
     this->airflow_control_select_->setCallbackFunction([this](const char* setting) {
         ESP_LOGD("EVT", "airFlow -> Request for change of airflow control setting: %s", setting);

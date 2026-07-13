@@ -1,4 +1,4 @@
-/// test_types.cpp — Tests de non-régression pour les structs du protocole CN105
+/// test_types.cpp - Regression tests for CN105 protocol structs.
 /// Deps: cn105_types.h, esphome_stubs.h
 #include <gtest/gtest.h>
 #include "esphome_stubs.h"

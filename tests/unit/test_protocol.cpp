@@ -25,8 +25,7 @@ TEST(ProtocolChecksum, InfoPacket) {
 }
 
 TEST(ProtocolChecksum, ZeroLength) {
-    uint8_t pkt[] = {};
-    EXPECT_EQ(checksum(pkt, 0), 0xfc);
+    EXPECT_EQ(checksum(nullptr, 0), 0xfc);
 }
 
 TEST(ProtocolChecksum, Overflow) {
@@ -317,5 +316,60 @@ TEST(ProtocolLookupIndexOpt, StringCaseInsensitive) {
 
 TEST(ProtocolLookupIndexOpt, StringNotFound) {
     auto result = lookup_index_opt(MODE_MAP, 5, "TURBO");
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST(ProtocolErrorCode, MasksStatusFlag) {
+    EXPECT_EQ(decode_error_code(0x80), 0x00);
+    EXPECT_EQ(decode_error_code(0x85), 0x05);
+    EXPECT_EQ(decode_error_code(0x05), 0x05);
+}
+
+TEST(ProtocolJpAiAuto, MatchesCapturedSignature) {
+    EXPECT_TRUE(is_jp_ai_auto(true, true, 0x0A, 0x02));
+    EXPECT_FALSE(is_jp_ai_auto(false, true, 0x0A, 0x02));
+    EXPECT_FALSE(is_jp_ai_auto(true, false, 0x0A, 0x02));
+    EXPECT_FALSE(is_jp_ai_auto(true, true, 0x00, 0x02));
+}
+
+TEST(ProtocolJpAutoSubMode, DecodesCapturedStates) {
+    auto non_auto = lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, 0x08);
+    auto automatic = lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, 0x18);
+    ASSERT_TRUE(non_auto.has_value());
+    ASSERT_TRUE(automatic.has_value());
+    EXPECT_STREQ(*non_auto, "JP_NON_AUTO");
+    EXPECT_STREQ(*automatic, "JP_AUTO");
+}
+
+TEST(ProtocolWideVane, AirflowControlForcesAdjustmentBit) {
+    EXPECT_EQ(encode_wide_vane(0x00, false, true), 0x80);
+    EXPECT_EQ(encode_wide_vane(0x07, true, false), 0x87);
+    EXPECT_EQ(encode_wide_vane(0x07, false, false), 0x07);
+}
+
+TEST(ProtocolVerticalVanes, PreservesBothSidesWithOneControlFlag) {
+    uint8_t packet[22] = {};
+    packet[6] = 0x02;
+
+    EXPECT_TRUE(apply_vertical_vane_control(packet, 0x04, 0x02));
+    EXPECT_EQ(packet[6], 0x12);
+    EXPECT_EQ(packet[12], 0x04);
+    EXPECT_EQ(packet[20], 0x02);
+}
+
+TEST(ProtocolVerticalVanes, LeavesPacketUntouchedWithoutValues) {
+    uint8_t packet[22] = {};
+    packet[6] = 0x02;
+
+    EXPECT_FALSE(apply_vertical_vane_control(packet, std::nullopt, std::nullopt));
+    EXPECT_EQ(packet[6], 0x02);
+}
+
+TEST(ProtocolLookupIndex, NullStringReturnsMinusOne) {
+    EXPECT_EQ(lookup_index(MODE_MAP, 5, nullptr), -1);
+}
+
+TEST(ProtocolLookupIndexOpt, NullStringReturnsNullopt) {
+    auto result = lookup_index_opt(MODE_MAP, 5, nullptr);
     EXPECT_FALSE(result.has_value());
 }

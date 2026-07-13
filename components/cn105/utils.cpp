@@ -114,7 +114,7 @@ void CN105Climate::updateTargetTemperaturesFromSettings(float temperature) {
                 this->setTargetTemperatureLow(temperature);
             }
         } else if (this->mode == climate::CLIMATE_MODE_AUTO || this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
-            // En AUTO/HEAT_COOL: si les deux bornes existent déjà, ne pas recentrer.
+            // In AUTO/HEAT_COOL, preserve an existing pair of bounds.
             // In HEAT_COOL the transmitted setpoint is the deadband output
             // clamp(current, low, high) — it carries no information about the
             // band, so reconstructing the band from it corrupts the user's
@@ -136,14 +136,14 @@ void CN105Climate::updateTargetTemperaturesFromSettings(float temperature) {
                 ESP_LOGD(LOG_SETTINGS_TAG, "AUTO fill missing low: [%.1f - %.1f]",
                     this->getTargetTemperatureLow(), this->getTargetTemperatureHigh());
             } else {
-                // aucune borne connue: initialiser autour de la médiane fournie
+                // No known bound: initialize around the supplied midpoint.
                 this->setTargetTemperatureLow(temperature - 2.0f);
                 this->setTargetTemperatureHigh(temperature + 2.0f);
                 ESP_LOGD(LOG_SETTINGS_TAG, "AUTO init dual setpoints [%.1f - %.1f], median %.1f",
                     this->getTargetTemperatureLow(), this->getTargetTemperatureHigh(), temperature);
             }
 
-            // Mémoriser dans currentSettings pour détection de glissement ultérieur
+            // Store the bounds in currentSettings for later drift detection.
             this->currentSettings.dual_low_target = this->getTargetTemperatureLow();
             this->currentSettings.dual_high_target = this->getTargetTemperatureHigh();
         } else {
@@ -254,12 +254,12 @@ void CN105Climate::sanitizeDualSetpoints() {
         return;
     }
     ESP_LOGD(LOG_DUAL_SP_TAG, "sanitizing dual setpoints...");
-    // Si une borne est NaN, la reconstruire à partir de l'autre borne ou d'une valeur raisonnable
+    // Reconstruct a NaN bound from the other bound or a reasonable default.
     bool lowIsNaN = std::isnan(this->getTargetTemperatureLow());
     bool highIsNaN = std::isnan(this->getTargetTemperatureHigh());
 
     if (lowIsNaN && highIsNaN) {
-        // Rien à faire si on n'a aucune info; essayer currentSettings.temperature si valide
+        // With no bound information, use currentSettings.temperature when valid.
         if (!std::isnan(this->currentSettings.temperature) && this->currentSettings.temperature > 0) {
             this->setTargetTemperatureLow(this->currentSettings.temperature - 2.0f);
             this->setTargetTemperatureHigh(this->currentSettings.temperature + 2.0f);
@@ -276,12 +276,12 @@ void CN105Climate::sanitizeDualSetpoints() {
     }
 
     if (lowIsNaN && !highIsNaN) {
-        // Reconstruire low à partir de high
+        // Reconstruct the low bound from the high bound.
         this->setTargetTemperatureLow((this->mode == climate::CLIMATE_MODE_AUTO)
             ? (this->getTargetTemperatureHigh() - 4.0f)
-            : this->getTargetTemperatureHigh()); // en HEAT/COOL, une seule consigne peut suffire
+            : this->getTargetTemperatureHigh()); // HEAT/COOL can use a single target.
     } else if (!lowIsNaN && highIsNaN) {
-        // Reconstruire high à partir de low
+        // Reconstruct the high bound from the low bound.
         this->setTargetTemperatureHigh((this->mode == climate::CLIMATE_MODE_AUTO)
             ? (this->getTargetTemperatureLow() + 4.0f)
             : this->getTargetTemperatureLow());
@@ -295,7 +295,7 @@ void CN105Climate::sanitizeDualSetpoints() {
 void CN105Climate::debugClimate(const char* settingName) {
     ESP_LOGD(LOG_SETTINGS_TAG, "[%s]-> [mode: %s, target °C: %.1f, fan: %s, swing: %s]",
         settingName,
-        LOG_STR_ARG(climate_mode_to_string(this->mode)), // Utilisation de LOG_STR_ARG
+        LOG_STR_ARG(climate_mode_to_string(this->mode)), // Convert the mode for logging.
         this->getTargetTemperatureInCurrentMode(),
         this->fan_mode.has_value() ? LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())) : "-",
         LOG_STR_ARG(climate_swing_mode_to_string(this->swing_mode)));
@@ -335,29 +335,28 @@ void CN105Climate::debugSettings(const char* settingName, heatpumpSettings& sett
 
 
 void CN105Climate::debugStatus(const char* statusName, heatpumpStatus status) {
-    // Déclarez un buffer (tableau de char) pour la conversion float -> string
-    // 6 caractères suffisent pour "-99.9\0"
+    // Buffer used to convert a float to a string.
+    // Six characters are enough for "-99.9\0".
     static char outside_temp_buffer[6];
 
 #ifdef USE_ESP32
     ESP_LOGI(LOG_STATUS_TAG, "[%s]-> [room C°: %.1f, outside C°: %s, operating: %s, compressor freq: %.1f Hz]",
         statusName,
         status.roomTemperature,
-        // Utilisation de snprintf dans l'expression ternaire
+        // Use snprintf in the conditional expression.
         isnan(status.outsideAirTemperature)
         ? "N/A"
         : (snprintf(outside_temp_buffer, sizeof(outside_temp_buffer), "%.1f", status.outsideAirTemperature) > 0 ? outside_temp_buffer : "ERR"),
         status.operating ? "YES" : "NO ",
         status.compressorFrequency);
 #else
-    // Le buffer doit être dans la portée pour le bloc #else aussi
-    // Si on veut qu'il soit statique, il faut le définir avant #ifdef
-    // Si la définition est locale, c'est bon :
+    // The buffer must also be in scope for the #else branch.
+    // Define it before #ifdef so it can remain static.
 
     ESP_LOGI(LOG_STATUS_TAG, "[%-*s]-> [room C°: %.1f, outside C°: %s, operating: %-*s, compressor freq: %.1f Hz]",
         15, statusName,
         status.roomTemperature,
-        // Utilisation de snprintf dans l'expression ternaire
+        // Use snprintf in the conditional expression.
         isnan(status.outsideAirTemperature)
         ? "N/A"
         : (snprintf(outside_temp_buffer, sizeof(outside_temp_buffer), "%.1f", status.outsideAirTemperature) > 0 ? outside_temp_buffer : "ERR"),
@@ -462,28 +461,28 @@ void CN105Climate::hpPacketDebug(const uint8_t* packet, unsigned int length, con
 }
 
 void CN105Climate::hpFunctionsDebug(uint8_t* packet, unsigned int length) {
-    if (length < 2) return; // Pas de données à décoder
+    if (length < 2) return; // No data to decode.
 
     std::string output;
-    output.reserve(length * 8); // Pré-allocation pour éviter les réallocations
+    output.reserve(length * 8); // Preallocate to avoid repeated reallocations.
 
     char buffer[16];
 
-    // On commence à i=1 pour sauter l'octet de commande (0x20 ou 0x22)
+    // Start at i=1 to skip the command byte (0x20 or 0x22).
     for (unsigned int i = 1; i < length; i++) {
         uint8_t byte = packet[i];
 
-        // Logique de décodage Mitsubishi (copiée de heatpumpFunctions)
+        // Mitsubishi decoding logic copied from heatpumpFunctions.
         int code = ((byte >> 2) & 0xff) + 100;
         int value = byte & 3;
 
-        // Formatage "Code:Valeur" (ex: " 102:3")
+        // Format as "Code:Value" (for example, " 102:3").
         snprintf(buffer, sizeof(buffer), " %d:%d", code, value);
         output += buffer;
     }
 
-    // Affichage avec le tag LOG_FUNCTIONS_TAG (défini dans cn105_types.h)
-    // Affiche par exemple : [FUNCTIONS] Decoded 20: 101:1 102:3 103:2 ...
+    // Log with LOG_FUNCTIONS_TAG, defined in cn105_types.h.
+    // Example: [FUNCTIONS] Decoded 20: 101:1 102:3 103:2 ...
     ESP_LOGD(LOG_FUNCTIONS_TAG, "Decoded %02X:%s", packet[0], output.c_str());
 }
 
@@ -529,7 +528,7 @@ int CN105Climate::lookupByteMapValue(const int valuesMap[], const uint8_t byteMa
 
 #ifndef USE_ESP32
 /**
- * This methode emulates the esp32 lock_guard feature with a boolean variable
+ * This method emulates the ESP32 lock_guard feature with a boolean variable.
  *
 */
 void CN105Climate::emulateMutex(const char* retryName, std::function<void()>&& f) {
@@ -604,12 +603,12 @@ void CN105Climate::testEmulateMutex(const char* retryName, std::function<void()>
 #ifdef TEST_MODE
 void CN105Climate::logDelegate() {
 #ifndef USE_ESP32
-    ESP_LOGI("testMutex", "Delegate exécuté. Mutex est %s", this->esp8266Mutex ? "verrouillé" : "déverrouillé");
+    ESP_LOGI("testMutex", "Delegate ran. Mutex is %s", this->esp8266Mutex ? "locked" : "unlocked");
 #else
     if (this->esp32Mutex.try_lock()) {
-        ESP_LOGI("testMutex", "Mutex n'est pas verrouillé");
+        ESP_LOGI("testMutex", "Mutex is not locked");
     } else {
-        ESP_LOGI("testMutex", "Mutex est déjà verrouillé");
+        ESP_LOGI("testMutex", "Mutex is already locked");
     }
 #endif
 }
@@ -619,40 +618,40 @@ void CN105Climate::testCase1() {
 
 #ifdef USE_ESP32
 
-    ESP_LOGI("testMutex", "Test 1: VERROUILLAGE ET APPEL DE logDelegate...");
-    ESP_LOGI("testMutex", "verrouillage du mutex...");
+    ESP_LOGI("testMutex", "Test 1: LOCK AND CALL logDelegate...");
+    ESP_LOGI("testMutex", "locking mutex...");
     if (true) {
         std::lock_guard<std::mutex> guard(this->esp32Mutex);
         ESP_LOGI("testMutex", "verification...");
         this->logDelegate();
     }
-    ESP_LOGI("testMutex", "déverrouillage du mutex...");
+    ESP_LOGI("testMutex", "unlocking mutex...");
     this->logDelegate();
 
-    ESP_LOGI("testMutex", "Test 2: PAS DE VERROU ET APPEL DE logDelegate...");
+    ESP_LOGI("testMutex", "Test 2: NO LOCK AND CALL logDelegate...");
     this->logDelegate();
 #else
-    ESP_LOGI("testMutex", "Test 1: VERROUILLAGE ET APPEL DE logDelegate...");
-    ESP_LOGI("testMutex", "verrouillage du mutex...");
+    ESP_LOGI("testMutex", "Test 1: LOCK AND CALL logDelegate...");
+    ESP_LOGI("testMutex", "locking mutex...");
     this->esp8266Mutex = true;
     this->testEmulateMutex("testMutex", std::bind(&CN105Climate::logDelegate, this));
     CUSTOM_DELAY(testDelay);
-    ESP_LOGI("testMutex", "Déverrouillage du mutex...");
+    ESP_LOGI("testMutex", "unlocking mutex...");
     this->esp8266Mutex = false;
     CUSTOM_DELAY(200);
-    ESP_LOGI("testMutex", "verrouillage du mutex...");
+    ESP_LOGI("testMutex", "locking mutex...");
     this->esp8266Mutex = true;
     this->testEmulateMutex("testMutex", std::bind(&CN105Climate::logDelegate, this));
-    ESP_LOGI("testMutex", "blocage de 2,5s...");
+    ESP_LOGI("testMutex", "blocking for 2.5s...");
     CUSTOM_DELAY(2500);
-    ESP_LOGI("testMutex", "fin du test");
+    ESP_LOGI("testMutex", "end of test");
 
 #endif
 }
 
 void CN105Climate::testMutex() {
 
-    ESP_LOGI("testMutex", "Test de gestion des mutex...");
+    ESP_LOGI("testMutex", "Mutex management test...");
     this->testCase1();
 
 }

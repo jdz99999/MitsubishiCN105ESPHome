@@ -1,6 +1,6 @@
 substitutions:
   name: "esp32-hp-test"
-  friendly_name: Clim Sejour
+  friendly_name: Living Room Climate
 
 esphome:
   name: ${name}
@@ -19,7 +19,7 @@ esp32:
 mqtt:  
   #broker: homeassistant.local
   broker: home-io.local           # if HA instance name is custom
-  username: heatpumpSejour
+  username: heatpumpLivingRoom
   password: !secret mqtt_password
   discovery: true
 
@@ -61,7 +61,7 @@ api:
   services:    
     - service: reboot
       then:
-        - logger.log: "Redémarrage en cours..."
+        - logger.log: "Restarting..."
         - lambda: |-
             esp_restart();
 
@@ -76,11 +76,11 @@ api:
         - lambda: 'id(esp32_clim).set_remote_temperature(0);'
     # - service: test-mutex
     #   then:
-    #     - logger.log: "Test de la fonction mutex..."
+    #     - logger.log: "Testing the mutex function..."
     #     - lambda: |-
     #         id(esp32_clim).testMutex();
   encryption:
-    key: !secret encryption_key_sejour
+    key: !secret encryption_key_living_room
 
 ota:  
   - platform: esphome
@@ -100,7 +100,7 @@ wifi:
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "Heatpump-Sejour Fallback Hotspot"
+    ssid: "Heatpump-Living-Room Fallback Hotspot"
     password: !secret ota_pwd
 
 captive_portal:
@@ -219,8 +219,8 @@ sensor:
     update_interval: 60s
 
   - platform: homeassistant
-    id: ha_cdeg_sejour_et_cuisine
-    entity_id: sensor.cdeg_sejour_et_cuisine
+    id: ha_cdeg_living_room_and_kitchen
+    entity_id: sensor.cdeg_living_room_and_kitchen
     internal: true
     on_value:
       then:
@@ -238,11 +238,11 @@ climate:
     name: ${friendly_name}
     id: "esp32_clim"
     compressor_frequency_sensor:
-      name: Compressor frequency (clim Sejour)    
+      name: Compressor Frequency (Living Room Climate)
     vertical_vane_select:
-      name: Orientation de la Vane Verticale
+      name: Vertical Vane Orientation
     horizontal_vane_select:
-      name: Orientation de la Vane Horizontale
+      name: Horizontal Vane Orientation
     isee_sensor:
       name: ISEE Sensor
     auto_sub_mode_sensor:

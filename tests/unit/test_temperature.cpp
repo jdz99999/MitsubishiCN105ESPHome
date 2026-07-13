@@ -1,4 +1,4 @@
-/// test_temperature.cpp — Tests de non-régression pour le décodage/encodage température
+/// test_temperature.cpp - Regression tests for temperature decoding and encoding.
 /// Deps: cn105_types.h (tables TEMP/TEMP_MAP), esphome_stubs.h
 #include <gtest/gtest.h>
 #include "esphome_stubs.h"

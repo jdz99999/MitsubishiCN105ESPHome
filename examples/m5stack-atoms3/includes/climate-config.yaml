@@ -23,7 +23,7 @@ climate:
     id: "atoms3_clim"
     uart_id: HP_UART
     compressor_frequency_sensor:
-      name: Compressor frequency (clim Sejour)
+      name: Compressor Frequency (Living Room Climate)
     input_power_sensor:
       name: Input power
     #kwh_sensor:
@@ -34,11 +34,11 @@ climate:
     #outside_air_temperature_sensor:
     #  name: ${name} Outside air temperature
     vertical_vane_select:
-      name: Orientation de la Vane Verticale
+      name: Vertical Vane Orientation
     target_humidity_sensor:
       name: "Target Humidity"
     #horizontal_vane_select:
-    #  name: Orientation de la Vane Horizontale
+    #  name: Horizontal Vane Orientation
     #isee_sensor:
     #  name: ISEE Sensor
     auto_sub_mode_sensor:
@@ -50,7 +50,7 @@ climate:
     error_code_sensor:
       name: error code
     remote_temperature_source:
-      sensor_id: ha_cdeg_sejour_et_cuisine
+      sensor_id: ha_cdeg_living_room_and_kitchen
     remote_temperature_timeout: 60min
     update_interval: 3500ms # shouldn't be less than 1 second
     debounce_delay: 100ms # delay to prevent bouncing

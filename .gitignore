@@ -1,16 +1,10 @@
 secrets.yaml
 .esphome
 __pycache__
-clim-chambre-awox.yaml
 test.yaml
 **/.DS_Store
 .venv/*
 CDC-DUAL-MODE-AUTO-HEAT-COOL.md
-CORRECTIONS-APPLIQUEES.md
-CORRECTIONS-DUAL-SETPOINT.md
-DIAGNOSTIC-DUAL-SETPOINT.md
-DIFF-MODIFICATIONS.md
-RESUME-CORRECTIONS.md
 snapshot.sh
 **/.vscode/*
 hp-esp32-arduino.yaml

@@ -54,7 +54,7 @@ from esphome.components.sensor import (
 )
 from esphome.core import CORE, coroutine
 
-# ... (AUTO_LOAD, DEPENDENCIES, toutes les constantes CONF_XXX_SENSOR, DEFAULT_MODES - identiques ÃÂÃÂ  votre version) ...
+# Component dependencies and configuration constants.
 AUTO_LOAD = [
     "climate",
     "sensor",
@@ -103,7 +103,7 @@ CONF_REMOTE_TEMP_SOURCE = "remote_temperature_source"
 CONF_REMOTE_TEMP_SOURCE_SENSOR_ID = "sensor_id"
 CONF_REMOTE_TEMP_SOURCE_INFO = "info"
 CONF_HP_UP_TIME_CONNECTION_SENSOR = "hp_uptime_connection_sensor"
-CONF_USE_AS_OPERATING_FALLBACK = "use_as_operating_fallback"  # Nouvelle constante
+CONF_USE_AS_OPERATING_FALLBACK = "use_as_operating_fallback"
 CONF_FAHRENHEIT_SUPPORT_MODE = "fahrenheit_compatibility"
 CONF_AIRFLOW_CONTROL_SELECT = "airflow_control_select"
 CONF_AIR_PURIFIER_SWITCH = "air_purifier_switch"
@@ -120,7 +120,7 @@ CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR = "remote_temperature_control_sensor"
 CONF_TEMPERATURE_MARGIN = "temperature_margin"
 CONF_POWER_UNIT_IS_BTU = "power_unit_is_btu"
 
-# Support explicite du DUAL setpoint via YAML
+# Explicit dual-setpoint support through YAML.
 CONF_DUAL_SETPOINT = "dual_setpoint"
 CONF_RESTORE_SETPOINTS = "restore_setpoints"
 
@@ -146,7 +146,7 @@ CONF_DEBOUNCE_DELAY = "debounce_delay"
 CONF_CONNECTION_BOOTSTRAP_DELAY = "connection_bootstrap_delay"
 CONF_INSTALLER_MODE = "installer_mode"
 
-# DÃÂÃÂ©finitions des classes C++ (identiques ÃÂÃÂ  votre version)
+# C++ class declarations.
 VaneOrientationSelect = cg.global_ns.class_(
     "VaneOrientationSelect", select.Select, cg.Component
 )
@@ -200,7 +200,7 @@ HardwareSettingSelect = cg.global_ns.class_(
 )
 
 
-# --- Fonction d'aide pour rÃÂÃÂ©cupÃÂÃÂ©rer les pins TX/RX (identique ÃÂÃÂ  votre version corrigÃÂÃÂ©e) ---
+# Helpers for resolving UART TX/RX pins.
 def get_uart_pins_from_config(core_config, target_uart_id_str):
     tx_pin_num = -1
     rx_pin_num = -1
@@ -226,13 +226,12 @@ def get_uart_pins_from_config(core_config, target_uart_id_str):
 
 
 def get_uart_port_index(core_config, target_uart_id_str):
-    # ESPHome ne fournit pas directement l'index de contrÃÂÃÂ´leur; on l'infÃÂÃÂ¨re
-    # via l'ordre de dÃÂÃÂ©claration ou restons ÃÂÃÂ  0 par dÃÂÃÂ©faut.
-    # On tente d'associer l'objet id() ÃÂÃÂ  sa position.
+    # ESPHome does not expose the controller index directly. Infer it from the
+    # declaration order and fall back to UART0 when no match is found.
     idx = 0
     for i, uart_conf_item in enumerate(core_config.get("uart", [])):
         if str(uart_conf_item[CONF_ID]) == target_uart_id_str:
-            idx = i  # souvent 0 => UART0, 1 => UART1, 2 => UART2
+            idx = i  # Usually 0 => UART0, 1 => UART1, 2 => UART2.
             break
     # Clamp 0..2
     if idx < 0:
@@ -242,9 +241,9 @@ def get_uart_port_index(core_config, target_uart_id_str):
     return idx
 
 
-# --- FIN de la fonction d'aide ---
+# End UART helper functions.
 
-# SchÃÂÃÂ©mas pour les entitÃÂÃÂ©s optionnelles (identiques ÃÂÃÂ  votre version)
+# Schemas for optional entities.
 SELECT_SCHEMA = select.select_schema(VaneOrientationSelect).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(VaneOrientationSelect)}
 )
@@ -341,15 +340,15 @@ REMOTE_TEMPERATURE_CONTROL_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema(
     }
 )
 
-# SchÃÂÃÂ©ma pour STAGE_SENSOR (qui est un text_sensor) AVEC la nouvelle sous-option
+# Stage text-sensor schema with its operating-status fallback option.
 STAGE_SENSOR_CONFIG_SCHEMA = text_sensor.text_sensor_schema(StageSensor).extend(
     {
-        # L'ID pour l'objet StageSensor C++ est gÃÂÃÂ©rÃÂÃÂ© par text_sensor.TEXT_SENSOR_SCHEMA (via CONF_ID)
+        # The base text-sensor schema manages the C++ object ID.
         cv.Optional(CONF_USE_AS_OPERATING_FALLBACK, default=False): cv.boolean,
     }
 )
 
-# SchÃÂÃÂ©ma pour HP_UP_TIME_CONNECTION_SENSOR (identique ÃÂÃÂ  votre version)
+# Heat-pump connection uptime sensor schema.
 HP_UP_TIME_CONNECTION_SENSOR_SCHEMA = sensor.sensor_schema(
     HpUpTimeConnectionSensor,
     unit_of_measurement=UNIT_SECOND,
@@ -382,9 +381,19 @@ HARDWARE_SETTING_SCHEMA = cv.Schema(
     }
 )
 
+
+def validate_raw_probe_codes(value):
+    codes = cv.ensure_list(cv.int_range(min=0, max=255))(value)
+    if not codes:
+        raise cv.Invalid("raw_probe requires at least one code")
+    if len(codes) != len(set(codes)):
+        raise cv.Invalid("raw_probe codes must be unique")
+    return codes
+
+
 RAW_PROBE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODES): cv.ensure_list(cv.int_range(min=0, max=255)),
+        cv.Required(CONF_CODES): validate_raw_probe_codes,
         cv.Optional(CONF_UPDATE_INTERVAL, default="10s"): cv.update_interval,
         cv.Optional(CONF_TIMEOUT, default="500ms"): cv.update_interval,
     }
@@ -428,7 +437,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(
                 CONF_STAGE_SENSOR
-            ): STAGE_SENSOR_CONFIG_SCHEMA,  # ModifiÃÂÃÂ© pour le nouveau schÃÂÃÂ©ma
+            ): STAGE_SENSOR_CONFIG_SCHEMA,
             cv.Optional(CONF_SUB_MODE_SENSOR): SUB_MODE_SENSOR_SCHEMA,
             cv.Optional(CONF_AUTO_SUB_MODE_SENSOR): AUTO_SUB_MODE_SENSOR_SCHEMA,
             cv.Optional(CONF_JP_AI_AUTO_SENSOR): JP_AI_AUTO_SENSOR_SCHEMA,
@@ -519,7 +528,7 @@ def to_code(config):
         supports = config[CONF_SUPPORTS]
         traits = var.config_traits()
 
-        # Configurer les modes supportÃÂÃÂ©s
+        # Configure supported climate modes.
         supported_modes = supports.get(CONF_MODE, DEFAULT_CLIMATE_MODES)
         for mode_str in supported_modes:
             if mode_str == "OFF":
@@ -592,10 +601,10 @@ def to_code(config):
         )
     )
 
-    # --- Configuration des entitÃÂÃÂ©s optionnelles (style original) ---
+    # Configure optional entities.
     if CONF_HORIZONTAL_SWING_SELECT in config:
         conf_item = config[CONF_HORIZONTAL_SWING_SELECT]
-        # new_select s'occupe de l'enregistrement. options=[] est important.
+        # new_select handles registration; an empty initial option list is required.
         swing_select_var = yield select.new_select(conf_item, options=[])
         if horizontal_vane_options:
             options_vector = cg.RawExpression(
@@ -622,15 +631,12 @@ def to_code(config):
         control_select_var = yield select.new_select(conf_item, options=[])
         cg.add(var.set_airflow_control_select(control_select_var))
 
-    # Pour les capteurs, text_sensors, etc., utiliser la mÃÂÃÂ©thode .new_... standard
-    # Ces fonctions s'occupent de l'enregistrement du composant.
+    # Standard new_* helpers also register sensor components.
     if CONF_COMPRESSOR_FREQUENCY_SENSOR in config:
-        # conf = config[CONF_COMPRESSOR_FREQUENCY_SENSOR] # 'conf' est dÃÂÃÂ©jÃÂÃÂ  utilisÃÂÃÂ© comme argument de to_code
-        # conf["force_update"] = False # Ceci ÃÂÃÂ©tait dans votre code original, le garder si pertinent
         conf_item = config[CONF_COMPRESSOR_FREQUENCY_SENSOR]
         if (
             "force_update" not in conf_item
-        ):  # S'assurer de ne pas l'ÃÂÃÂ©craser si l'user l'a mis
+        ):  # Preserve an explicit user setting.
             conf_item["force_update"] = False
         sensor_var = yield sensor.new_sensor(conf_item)
         cg.add(var.set_compressor_frequency_sensor(sensor_var))
@@ -726,17 +732,16 @@ def to_code(config):
     )
     cg.add(var.set_use_fahrenheit_support_mode(mode_enum))
 
-    # --- TRAITEMENT POUR STAGE_SENSOR AVEC LA NOUVELLE OPTION ---
+    # Configure the stage sensor and its optional operating fallback.
     if CONF_STAGE_SENSOR in config:
         conf_stage_dict = config[CONF_STAGE_SENSOR]
-        # new_text_sensor gÃÂÃÂ¨re la crÃÂÃÂ©ation et l'enregistrement de base du text_sensor
+        # new_text_sensor creates and registers the base text sensor.
         stage_ts_var = yield text_sensor.new_text_sensor(conf_stage_dict)
         cg.add(var.set_stage_sensor(stage_ts_var))
 
-        # Passer l'option de fallback au C++
+        # Pass the operating fallback option to C++.
         if conf_stage_dict.get(CONF_USE_AS_OPERATING_FALLBACK, False):
             cg.add(var.set_use_stage_for_operating_status(True))
-    # --- FIN DU TRAITEMENT POUR STAGE_SENSOR ---
 
     if CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR in config:
         conf = config[CONF_REMOTE_TEMPERATURE_CONTROL_SENSOR]

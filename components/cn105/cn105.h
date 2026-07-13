@@ -8,6 +8,7 @@
 #include "left_vane_select.h"
 #include "uptime_connection_sensor.h"
 #include "compressor_frequency_sensor.h"
+#include "target_humidity_sensor.h"
 #include "input_power_sensor.h"
 #include "kwh_sensor.h"
 #include "runtime_hours_sensor.h"
@@ -30,6 +31,7 @@
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/components/button/button.h>
 #include <esphome/components/binary_sensor/binary_sensor.h>
+#include "esphome/core/preferences.h"
 #include "cycle_management.h"
 #include <vector>
 #include <map>
@@ -74,6 +76,7 @@ namespace esphome {
         void set_horizontal_vane_select(VaneOrientationSelect* horizontal_vane_select, const std::vector<std::string>& options = {});
         void set_airflow_control_select(VaneOrientationSelect* airflow_control_select);
         void set_compressor_frequency_sensor(esphome::sensor::Sensor* compressor_frequency_sensor);
+        void set_target_humidity_sensor(esphome::sensor::Sensor* target_humidity_sensor);
         void set_input_power_sensor(esphome::sensor::Sensor* input_power_sensor);
         void set_kwh_sensor(esphome::sensor::Sensor* kwh_sensor);
         void set_runtime_hours_sensor(esphome::sensor::Sensor* runtime_hours_sensor);
@@ -160,6 +163,8 @@ namespace esphome {
             nullptr;
         sensor::Sensor* compressor_frequency_sensor_ =
             nullptr;  // Sensor to store compressor frequency
+        sensor::Sensor* target_humidity_sensor_ =
+            nullptr;  // Sensor to expose target humidity from 0x02 settings packet (byte 12)
         sensor::Sensor* input_power_sensor_ =
             nullptr;  // Sensor to store compressor frequency
         sensor::Sensor* kwh_sensor_ =
@@ -288,6 +293,9 @@ namespace esphome {
 
         // UnitÃÂ© de puissance brute envoyÃÂ©e par la PAC: false = Watts (dÃÂ©faut), true = BTU/s
         void set_power_unit_is_btu(bool v) { this->power_unit_is_btu_ = v; }
+
+        // Opt-in (supports.restore_setpoints): persist HEAT_COOL band across reboots
+        void set_restore_setpoints(bool v) { this->restore_setpoints_ = v; }
 
         // Configure the climate object with traits that we support.
 
@@ -543,5 +551,21 @@ namespace esphome {
         std::vector<uint8_t> raw_probe_codes_{};
         uint32_t raw_probe_interval_ms_{ 10000 };
         uint32_t raw_probe_timeout_ms_{ 500 };
+
+        // --- HEAT_COOL setpoint persistence (opt-in via supports.restore_setpoints) ---
+        // The dual-setpoint band is synthetic (the heat pump only stores a single setpoint),
+        // so it is lost on reboot. When enabled, we persist {mode, low, high} to flash and
+        // re-seed it in setup() before the first settings read.
+        struct SetpointState {
+            uint8_t version;
+            uint8_t mode;        // climate::ClimateMode
+            float target_low;
+            float target_high;
+        } __attribute__((packed));
+        bool restore_setpoints_ = false;
+        esphome::ESPPreferenceObject setpoint_pref_;
+        bool setpoint_pref_ready_ = false;
+        void restore_setpoint_state_();
+        void save_setpoint_state_();
     };
 }

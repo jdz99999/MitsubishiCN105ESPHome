@@ -48,10 +48,12 @@ void CN105Climate::set_left_vane_select(
 
         ESP_LOGD("EVT", "left_vane.control() -> requested left vane setting: %s", setting);
 
+        // The left vane is a subtype 0x33 field, so it travels with the run
+        // states rather than the main 0x01 SET.
         this->setLeftVaneSetting(setting);
-        this->wantedSettings.hasChanged = true;
-        this->wantedSettings.hasBeenSent = false;
-        this->wantedSettings.lastChange = CUSTOM_MILLIS;
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
         });
 
 }
@@ -248,6 +250,110 @@ void CN105Climate::set_circulator_switch(HVACOptionSwitch* Switch) { // only in 
         this->wantedRunStates.hasBeenSent = false;
         this->wantedRunStates.lastChange = CUSTOM_MILLIS;
         });
+}
+
+// ── Controls derived from the official Mitsubishi encoders ──────────────────
+// Energy saving, dehumidification target and the buzzer ride on subtype 0x08;
+// Long airflow and stopped-state sensing on subtype 0x33; the thermal image on
+// its own subtype 0x08 frame. Each of them refuses to arm when the captured
+// model profile says the unit does not have the feature.
+
+void CN105Climate::set_energy_saving_switch(HVACOptionSwitch* Switch) {
+    this->energy_saving_switch_ = Switch;
+    this->energy_saving_switch_->setCallbackFunction([this](bool state) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_energy_saving)) {
+            ESP_LOGW(TAG, "Model profile does not advertise energy saving; ignoring request");
+            this->energy_saving_switch_->publish_state(this->currentRunStates.energy_saving > 0);
+            return;
+        }
+        this->wantedRunStates.energy_saving = state;
+
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        });
+}
+
+void CN105Climate::set_thermal_image_switch(HVACOptionSwitch* Switch) {
+    this->thermal_image_switch_ = Switch;
+    this->thermal_image_switch_->setCallbackFunction([this](bool state) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_thermal_image)) {
+            ESP_LOGW(TAG, "Model profile does not advertise the thermal image; ignoring request");
+            this->thermal_image_switch_->publish_state(this->currentRunStates.thermal_image > 0);
+            return;
+        }
+        this->wantedRunStates.thermal_image = state;
+
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        });
+}
+
+void CN105Climate::set_long_airflow_switch(HVACOptionSwitch* Switch) {
+    this->long_airflow_switch_ = Switch;
+    this->long_airflow_switch_->setCallbackFunction([this](bool state) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_long_airflow)) {
+            ESP_LOGW(TAG, "Model profile does not advertise Long airflow; ignoring request");
+            this->long_airflow_switch_->publish_state(this->currentRunStates.long_airflow > 0);
+            return;
+        }
+        this->wantedRunStates.long_airflow = state;
+
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        });
+}
+
+void CN105Climate::set_stopped_sensing_switch(HVACOptionSwitch* Switch) {
+    this->stopped_sensing_switch_ = Switch;
+    this->stopped_sensing_switch_->setCallbackFunction([this](bool state) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_stopped_sensing)) {
+            ESP_LOGW(TAG, "Model profile does not advertise stopped-state sensing; ignoring request");
+            this->stopped_sensing_switch_->publish_state(this->currentRunStates.stopped_sensing > 0);
+            return;
+        }
+        this->wantedRunStates.stopped_sensing = state;
+
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        });
+}
+
+void CN105Climate::set_target_humidity_number(FunctionsNumber* Number) {
+    this->target_humidity_number_ = Number;
+    this->target_humidity_number_->setCallbackFunction([this](float value) {
+        const uint8_t requested = cn105_protocol::clamp_target_humidity(static_cast<int>(value));
+        ESP_LOGD("EVT", "target_humidity.control() -> requested %.0f%% (sending %u%%)", value,
+            static_cast<unsigned>(requested));
+        this->wantedRunStates.target_humidity = static_cast<int8_t>(requested);
+
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        });
+}
+
+void CN105Climate::set_buzzer_button(FunctionsButton* Button) {
+    this->buzzer_button_ = Button;
+    this->buzzer_button_->setCallbackFunction([this]() {
+        // One shot: the buzzer command carries no state and is never read back.
+        this->wantedRunStates.buzzer = true;
+
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        });
+}
+
+void CN105Climate::set_auto_direction_sensor(esphome::text_sensor::TextSensor* auto_direction_sensor) {
+    this->auto_direction_sensor_ = auto_direction_sensor;
+}
+
+void CN105Climate::set_profile_sensor(esphome::text_sensor::TextSensor* profile_sensor) {
+    this->profile_sensor_ = profile_sensor;
 }
 
 void CN105Climate::set_sub_mode_sensor(esphome::text_sensor::TextSensor* Sub_mode_sensor) {

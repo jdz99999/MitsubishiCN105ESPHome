@@ -198,7 +198,7 @@ TEST(LookupTablesTest, WideVaneByteToString_JpPositions) {
 // ---- AIRFLOW CONTROL Tests ----
 
 TEST(LookupTablesTest, AirflowControlByteToString_Even) {
-    EXPECT_STREQ(lookupByteMapValue(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, 0x00), "EVEN");
+    EXPECT_STREQ(lookupByteMapValue(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, 0x00), "NORMAL");
 }
 
 TEST(LookupTablesTest, AirflowControlByteToString_Direct) {

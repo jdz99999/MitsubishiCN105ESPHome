@@ -325,20 +325,16 @@ TEST(ProtocolErrorCode, MasksStatusFlag) {
     EXPECT_EQ(decode_error_code(0x05), 0x05);
 }
 
-TEST(ProtocolJpAiAuto, MatchesCapturedSignature) {
-    EXPECT_TRUE(is_jp_ai_auto(true, true, 0x0A, 0x02));
-    EXPECT_FALSE(is_jp_ai_auto(false, true, 0x0A, 0x02));
-    EXPECT_FALSE(is_jp_ai_auto(true, false, 0x0A, 0x02));
-    EXPECT_FALSE(is_jp_ai_auto(true, true, 0x00, 0x02));
-}
-
 TEST(ProtocolJpAutoSubMode, DecodesCapturedStates) {
     auto non_auto = lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, 0x08);
-    auto automatic = lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, 0x18);
+    auto heating = lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, 0x18);
+    auto cooling = lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, 0x28);
     ASSERT_TRUE(non_auto.has_value());
-    ASSERT_TRUE(automatic.has_value());
+    ASSERT_TRUE(heating.has_value());
+    ASSERT_TRUE(cooling.has_value());
     EXPECT_STREQ(*non_auto, "JP_NON_AUTO");
-    EXPECT_STREQ(*automatic, "JP_AUTO");
+    EXPECT_STREQ(*heating, "JP_AUTO_HEATING");
+    EXPECT_STREQ(*cooling, "JP_AUTO_COOLING");
 }
 
 TEST(ProtocolWideVane, AirflowControlForcesAdjustmentBit) {
@@ -347,22 +343,253 @@ TEST(ProtocolWideVane, AirflowControlForcesAdjustmentBit) {
     EXPECT_EQ(encode_wide_vane(0x07, false, false), 0x07);
 }
 
-TEST(ProtocolVerticalVanes, PreservesBothSidesWithOneControlFlag) {
+TEST(ProtocolVerticalVanes, WritesRightVaneAndControlFlag) {
     uint8_t packet[22] = {};
     packet[6] = 0x02;
 
-    EXPECT_TRUE(apply_vertical_vane_control(packet, 0x04, 0x02));
+    EXPECT_TRUE(apply_vertical_vane_control(packet, 0x04));
     EXPECT_EQ(packet[6], 0x12);
     EXPECT_EQ(packet[12], 0x04);
-    EXPECT_EQ(packet[20], 0x02);
+    // Payload 15 is the origin marker: a vane write must never land there.
+    EXPECT_EQ(packet[20], 0x00);
 }
 
 TEST(ProtocolVerticalVanes, LeavesPacketUntouchedWithoutValues) {
     uint8_t packet[22] = {};
     packet[6] = 0x02;
 
-    EXPECT_FALSE(apply_vertical_vane_control(packet, std::nullopt, std::nullopt));
+    EXPECT_FALSE(apply_vertical_vane_control(packet, std::nullopt));
     EXPECT_EQ(packet[6], 0x02);
+}
+
+// ════════════════════════════════════════════════════════════════
+// Command origin marker (subtype 0x01 payload 15)
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolCommandOrigin, DefaultsToLocalControl) {
+    uint8_t packet[22] = {};
+    set_command_origin(packet);
+    EXPECT_EQ(packet[20], 0x41);
+}
+
+TEST(ProtocolCommandOrigin, AcceptsCloudMarker) {
+    uint8_t packet[22] = {};
+    set_command_origin(packet, SET_ORIGIN_OUTSIDE);
+    EXPECT_EQ(packet[20], 0x42);
+}
+
+// ════════════════════════════════════════════════════════════════
+// Operating mode decode (official getDriveMode table)
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolModeDecode, PlainModes) {
+    EXPECT_EQ(decode_mode_byte(0x01).mode, 0x01);
+    EXPECT_FALSE(decode_mode_byte(0x01).iSee);
+    EXPECT_EQ(decode_mode_byte(0x03).mode, 0x03);
+    EXPECT_EQ(decode_mode_byte(0x07).mode, 0x07);
+    EXPECT_EQ(decode_mode_byte(0x08).mode, 0x08);
+}
+
+TEST(ProtocolModeDecode, ISeeVariants) {
+    EXPECT_EQ(decode_mode_byte(0x09).mode, 0x01);
+    EXPECT_TRUE(decode_mode_byte(0x09).iSee);
+    EXPECT_EQ(decode_mode_byte(0x0b).mode, 0x03);
+    EXPECT_TRUE(decode_mode_byte(0x0b).iSee);
+    // 0x0C was previously decoded as mode 0x04 and rejected as unknown.
+    EXPECT_EQ(decode_mode_byte(0x0c).mode, 0x02);
+    EXPECT_TRUE(decode_mode_byte(0x0c).iSee);
+}
+
+TEST(ProtocolModeDecode, JpAutoModesReportDirection) {
+    const auto heating = decode_mode_byte(0x19);
+    EXPECT_TRUE(heating.valid);
+    EXPECT_EQ(heating.mode, 0x08);
+    EXPECT_EQ(heating.auto_direction, AutoDirection::HEATING);
+
+    const auto cooling = decode_mode_byte(0x1b);
+    EXPECT_TRUE(cooling.valid);
+    EXPECT_EQ(cooling.mode, 0x08);
+    EXPECT_EQ(cooling.auto_direction, AutoDirection::COOLING);
+}
+
+TEST(ProtocolModeDecode, UnknownByteIsRejected) {
+    EXPECT_FALSE(decode_mode_byte(0x00).valid);
+    EXPECT_FALSE(decode_mode_byte(0x55).valid);
+}
+
+TEST(ProtocolAutoDirection, DecodesCapturedValues) {
+    // Hardware capture from the ZW9025: 0x28 while auto-cooling.
+    EXPECT_EQ(decode_auto_direction(0x28), AutoDirection::COOLING);
+    EXPECT_EQ(decode_auto_direction(0x18), AutoDirection::HEATING);
+    EXPECT_EQ(decode_auto_direction(0x00), AutoDirection::NONE);
+    // The official decoder also accepts the low bit pair.
+    EXPECT_EQ(decode_auto_direction(0x03), AutoDirection::COOLING);
+    EXPECT_EQ(decode_auto_direction(0x02), AutoDirection::HEATING);
+}
+
+// ════════════════════════════════════════════════════════════════
+// PROFILECODE capability frames (hardware capture, ZW9025 family)
+// ════════════════════════════════════════════════════════════════
+
+namespace {
+// fc7b013010 c9 0300200014dfe58435a0be94bea0be b9  → payload starts at the table id
+const uint8_t kProfileC9[16] = { 0xc9, 0x03, 0x00, 0x20, 0x00, 0x14, 0xdf, 0xe5,
+                                 0x84, 0x35, 0xa0, 0xbe, 0x94, 0xbe, 0xa0, 0xbe };
+const uint8_t kProfileCD[16] = { 0xcd, 0xa0, 0xbe, 0xa0, 0xbe, 0xa0, 0xbe, 0x1f,
+                                 0xd1, 0x03, 0x96, 0x14, 0xc0, 0x40, 0x03, 0x00 };
+const uint8_t kProfileD0[16] = { 0xd0, 0x1c, 0xef, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+const uint8_t kProfileD1[16] = { 0xd1, 0x4d, 0x53, 0x5a, 0x5a, 0x2a, 0x2a, 0x2a,
+                                 0x39, 0x30, 0x32, 0x35, 0x2a, 0x00, 0x00, 0x00 };
+}  // namespace
+
+TEST(ProtocolProfile, DecodesCapturedZw9025Tables) {
+    ProfileCapabilities caps{};
+
+    ASSERT_TRUE(decode_profile_payload(kProfileC9, 16, caps));
+    EXPECT_EQ(caps.c9_6, 0xdf);
+    EXPECT_EQ(caps.c9_9, 0x35);
+    EXPECT_TRUE(caps.supports_thermal_image());
+    EXPECT_TRUE(caps.supports_touch_flow());
+    EXPECT_TRUE(caps.supports_auto_mode());
+    EXPECT_TRUE(caps.supports_outside_temperature());
+
+    ASSERT_TRUE(decode_profile_payload(kProfileCD, 16, caps));
+    EXPECT_EQ(caps.cd_7, 0x1f);
+    EXPECT_TRUE(caps.humidity_shown_as_percent());
+    EXPECT_TRUE(caps.supports_energy_saving());
+    EXPECT_TRUE(caps.uses_effective_room_temperature());
+    EXPECT_TRUE(caps.supports_ventilation_assist());
+    EXPECT_TRUE(caps.supports_online_serial_write());
+
+    ASSERT_TRUE(decode_profile_payload(kProfileD0, 16, caps));
+    EXPECT_TRUE(caps.supports_vital_sensor());
+    EXPECT_TRUE(caps.supports_stopped_sensing());
+    EXPECT_TRUE(caps.displays_vertical_vane());
+    EXPECT_TRUE(caps.displays_horizontal_vane());
+    EXPECT_TRUE(caps.supports_long_airflow());
+    EXPECT_TRUE(caps.supports_special_airflow());
+
+    ASSERT_TRUE(decode_profile_payload(kProfileD1, 16, caps));
+    EXPECT_STREQ(caps.model, "MSZZ***9025*");
+}
+
+TEST(ProtocolProfile, IgnoresUnknownAndShortFrames) {
+    ProfileCapabilities caps{};
+    const uint8_t unknown[4] = { 0xce, 0x00, 0x00, 0x00 };
+    EXPECT_FALSE(decode_profile_payload(unknown, 4, caps));
+    EXPECT_FALSE(decode_profile_payload(kProfileC9, 4, caps));
+    EXPECT_FALSE(decode_profile_payload(nullptr, 16, caps));
+    EXPECT_FALSE(caps.valid);
+}
+
+TEST(ProtocolProfile, CapabilitiesAreFalseWithoutTheirTable) {
+    ProfileCapabilities caps{};
+    ASSERT_TRUE(decode_profile_payload(kProfileC9, 16, caps));
+    // Only C9 was seen, so CD/D0 capabilities must not be claimed.
+    EXPECT_FALSE(caps.uses_effective_room_temperature());
+    EXPECT_FALSE(caps.supports_long_airflow());
+}
+
+TEST(ProtocolRoomTemperature, UsesEffectiveByteOnlyWhenAdvertised) {
+    // Captured pair: legacy 0xB4 = 26.0 C, effective 0xB5 = 26.5 C.
+    EXPECT_EQ(select_room_temperature_byte(0xb4, 0xb5, true), 0xb5);
+    EXPECT_EQ(select_room_temperature_byte(0xb4, 0xb5, false), 0xb4);
+    // An empty effective byte must never win.
+    EXPECT_EQ(select_room_temperature_byte(0xb4, 0x00, true), 0xb4);
+}
+
+// ════════════════════════════════════════════════════════════════
+// SET subtype 0x08 — run states
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolRunState, EncodesEnergySavingAndAirflow) {
+    uint8_t packet[22] = {};
+    RunStateRequest request{};
+    request.energy_saving = true;
+    request.special_airflow = 0x03;
+
+    ASSERT_TRUE(apply_run_state_request(packet, request));
+    EXPECT_EQ(packet[5], 0x08);
+    EXPECT_EQ(packet[6], 0x28);   // 0x08 energy saving | 0x20 special airflow
+    EXPECT_EQ(packet[10], 0x0a);  // payload 5
+    EXPECT_EQ(packet[11], 0x03);  // payload 6
+}
+
+TEST(ProtocolRunState, MatchesOfficialBuzzerFrame) {
+    // Exact frame found in the official Kiriweb encoder:
+    // FC 41 01 30 10 08 10 00 00 00 00 00 01 00 00 00 00 00 00 00 00 65
+    uint8_t packet[22] = { 0xfc, 0x41, 0x01, 0x30, 0x10 };
+    RunStateRequest request{};
+    request.buzzer = true;
+
+    ASSERT_TRUE(apply_run_state_request(packet, request));
+    packet[21] = checksum(packet, 21);
+
+    const uint8_t expected[22] = { 0xfc, 0x41, 0x01, 0x30, 0x10, 0x08, 0x10, 0x00,
+                                   0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x65 };
+    EXPECT_EQ(memcmp(packet, expected, sizeof(expected)), 0);
+}
+
+TEST(ProtocolRunState, EmptyRequestWritesNothing) {
+    uint8_t packet[22] = {};
+    RunStateRequest request{};
+    EXPECT_FALSE(apply_run_state_request(packet, request));
+    EXPECT_EQ(packet[5], 0x00);
+    EXPECT_EQ(packet[6], 0x00);
+}
+
+TEST(ProtocolRunState, ClampsHumidityToRemoteRange) {
+    EXPECT_EQ(clamp_target_humidity(10), 40);
+    EXPECT_EQ(clamp_target_humidity(45), 50);
+    EXPECT_EQ(clamp_target_humidity(60), 60);
+    EXPECT_EQ(clamp_target_humidity(99), 70);
+}
+
+TEST(ProtocolThermalImage, UsesItsOwnControlBit) {
+    uint8_t packet[22] = {};
+    build_thermal_image_packet(packet, true);
+    EXPECT_EQ(packet[5], 0x08);
+    EXPECT_EQ(packet[6], 0x80);
+    EXPECT_EQ(packet[14], 0x01);  // payload 9
+
+    build_thermal_image_packet(packet, false);
+    EXPECT_EQ(packet[14], 0x00);
+}
+
+// ════════════════════════════════════════════════════════════════
+// SET subtype 0x33 — left vane, Long airflow, stopped-state sensing
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolVaneExtension, WritesLeftVaneWithItsOwnMask) {
+    uint8_t packet[22] = {};
+    VaneExtensionRequest request{};
+    request.left_vane = 0x05;
+
+    ASSERT_TRUE(apply_vane_extension_request(packet, request));
+    EXPECT_EQ(packet[5], 0x33);
+    EXPECT_EQ(packet[6], 0x02);
+    EXPECT_EQ(packet[9], 0x05);   // payload 4
+}
+
+TEST(ProtocolVaneExtension, CombinesSensingAndLongAirflow) {
+    uint8_t packet[22] = {};
+    VaneExtensionRequest request{};
+    request.stopped_sensing = true;
+    request.long_airflow = true;
+
+    ASSERT_TRUE(apply_vane_extension_request(packet, request));
+    EXPECT_EQ(packet[6], 0x05);   // 0x01 sensing | 0x04 Long
+    EXPECT_EQ(packet[8], 0x01);   // payload 3
+    EXPECT_EQ(packet[10], 0x01);  // payload 5
+}
+
+TEST(ProtocolVaneExtension, EmptyRequestWritesNothing) {
+    uint8_t packet[22] = {};
+    VaneExtensionRequest request{};
+    EXPECT_FALSE(apply_vane_extension_request(packet, request));
+    EXPECT_EQ(packet[5], 0x00);
 }
 
 TEST(ProtocolLookupIndex, NullStringReturnsMinusOne) {

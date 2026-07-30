@@ -129,6 +129,25 @@ void CN105Climate::getPowerFromResponsePacket() {
     ESP_LOGD("Decoder", "[Sub Mode  : %s]", receivedSettings.sub_mode);
     ESP_LOGD("Decoder", "[Auto Mode Sub Mode  : %s]", receivedSettings.auto_sub_mode);
 
+    // Direction the unit picked while running an automatic mode. The official
+    // decoder reads it from two bit pairs of this same byte, which covers the
+    // values the AUTO_SUB_MODE table does not enumerate (0x18, 0x28, ...).
+    const char* auto_direction = cn105_protocol::auto_direction_to_string(
+        cn105_protocol::decode_auto_direction(data[5]));
+    if (this->auto_direction_sensor_ != nullptr &&
+        (this->auto_direction_state_ == nullptr || strcmp(auto_direction, this->auto_direction_state_) != 0)) {
+        ESP_LOGD("Decoder", "[Auto direction : %s] raw=0x%02X", auto_direction, data[5]);
+        this->auto_direction_state_ = auto_direction;
+        this->auto_direction_sensor_->publish_state(auto_direction);
+    }
+
+    // Payload 7 carries the thermal-image (Move Eye panorama) enable state. The
+    // image itself is cloud-side; only the on/off state travels over CN105.
+    if (this->wantedRunStates.thermal_image < 0) {
+        this->publishRunStateSwitch(this->thermal_image_switch_, this->currentRunStates.thermal_image,
+            data[7] == 0x01 ? 1 : 0, "thermal image");
+    }
+
     //this->heatpumpUpdate(receivedSettings);
     if (this->stage_sensor_ != nullptr) {
         if (!this->currentSettings.stage || strcmp(receivedSettings.stage, this->currentSettings.stage) != 0) {
@@ -170,13 +189,17 @@ void CN105Climate::getSettingsFromResponsePacket() {
             : POWER_MAP[0];  // default to "OFF" when no prior value exists
     }
 
-    receivedSettings.iSee = data[4] > 0x08 ? true : false;
-    uint8_t modeByte = receivedSettings.iSee ? (data[4] - 0x08) : data[4];
-    auto mode_opt = cn105_protocol::lookup_value_opt(MODE_MAP, MODE, 5, modeByte);
-    if (mode_opt) {
-        receivedSettings.mode = *mode_opt;
+    // Operating mode, decoded with the official client's table. Raw 0x19/0x1B are
+    // the JP automatic modes that also announce the direction the unit picked;
+    // both normalise to AUTO so Home Assistant still sees one AUTO mode.
+    const auto modeDecode = cn105_protocol::decode_mode_byte(data[4]);
+    if (modeDecode.valid) {
+        receivedSettings.iSee = modeDecode.iSee;
+        auto mode_opt = cn105_protocol::lookup_value_opt(MODE_MAP, MODE, 5, modeDecode.mode);
+        receivedSettings.mode = mode_opt ? *mode_opt : MODE_MAP[4];
     } else {
-        ESP_LOGW("Decoder", "Unknown mode byte 0x%02X — keeping previous value", modeByte);
+        ESP_LOGW("Decoder", "Unknown mode byte 0x%02X — keeping previous value", data[4]);
+        receivedSettings.iSee = this->currentSettings.iSee;
         receivedSettings.mode = this->currentSettings.mode
             ? this->currentSettings.mode
             : MODE_MAP[4];  // default to "AUTO" when no prior value exists
@@ -186,19 +209,23 @@ void CN105Climate::getSettingsFromResponsePacket() {
     ESP_LOGD("Decoder", "[iSee  : %d]", receivedSettings.iSee);
     ESP_LOGD("Decoder", "[Mode  : %s]", receivedSettings.mode);
 
+    // JP AI Auto readback. The mode byte itself is the evidence: 0x19/0x1B are
+    // the automatic modes the official app labels AI Auto. The old signature
+    // (data[13]==0x0A && data[14]==0x02) was withdrawn — those two bytes are
+    // energy saving and sensor-directed airflow, which AI Auto merely turns on.
     if (this->Jp_ai_auto_sensor_ != nullptr) {
         const bool power_on = receivedSettings.power != nullptr && strcmp(receivedSettings.power, "ON") == 0;
-        const bool is_auto = receivedSettings.mode != nullptr && strcmp(receivedSettings.mode, "AUTO") == 0;
-        const bool is_zw_ai_auto = cn105_protocol::is_jp_ai_auto(power_on, is_auto, data[13], data[14]);
         const char* jp_ai_auto_state = "OTHER";
         if (!power_on) {
             jp_ai_auto_state = "OFF";
-        } else if (is_zw_ai_auto) {
-            jp_ai_auto_state = "AI_AUTO";
-        } else if (is_auto) {
+        } else if (modeDecode.auto_direction == cn105_protocol::AutoDirection::HEATING) {
+            jp_ai_auto_state = "AI_AUTO_HEATING";
+        } else if (modeDecode.auto_direction == cn105_protocol::AutoDirection::COOLING) {
+            jp_ai_auto_state = "AI_AUTO_COOLING";
+        } else if (modeDecode.valid && modeDecode.mode == 0x08) {
             jp_ai_auto_state = "AUTO";
         }
-        ESP_LOGD("Decoder", "[JP AI Auto: %s] data[13]=0x%02X data[14]=0x%02X", jp_ai_auto_state, data[13], data[14]);
+        ESP_LOGD("Decoder", "[JP AI Auto: %s] raw mode=0x%02X", jp_ai_auto_state, data[4]);
         if (this->jp_ai_auto_state_ == nullptr || strcmp(jp_ai_auto_state, this->jp_ai_auto_state_) != 0) {
             this->jp_ai_auto_state_ = jp_ai_auto_state;
             this->Jp_ai_auto_sensor_->publish_state(jp_ai_auto_state);
@@ -279,54 +306,85 @@ void CN105Climate::getSettingsFromResponsePacket() {
         this->iSee_sensor_->publish_state(receivedSettings.iSee);
     }
 
-    // --- TARGET HUMIDITY (byte 12 of 0x02 settings packet) ---
-    // Some premium models (e.g. MSZ-LN series) store a target humidity
-    // percentage in data[12]. This value changes when the mode is switched
-    // via the IR remote (e.g. COOL→70%, DRY→50%, HEAT→40%).
-    // Not all models populate this byte — it may read 0x00 on unsupported units.
-    if (this->target_humidity_sensor_ != nullptr) {
-        uint8_t raw_humidity = data[12];
-        if (raw_humidity > 0 && raw_humidity <= 100) {
+    // --- TARGET HUMIDITY (payload 12 of the 0x02 settings packet) ---
+    // Both official Mitsubishi clients read this byte as the dehumidification
+    // target in percent (40..70 on the models that expose the control). It reads
+    // 0x00 on units without the feature.
+    uint8_t raw_humidity = data[12];
+    if (raw_humidity > 0 && raw_humidity <= 100) {
+        receivedRunStates.target_humidity = static_cast<int8_t>(raw_humidity);
+        if (this->target_humidity_sensor_ != nullptr) {
             float humidity_pct = static_cast<float>(raw_humidity);
             if (this->target_humidity_sensor_->get_raw_state() != humidity_pct) {
                 ESP_LOGD("Decoder", "[Target Humidity: %.0f%%]", humidity_pct);
                 this->target_humidity_sensor_->publish_state(humidity_pct);
             }
-        } else if (raw_humidity != 0) {
-            ESP_LOGD("Decoder", "[Target Humidity byte out of range: 0x%02X]", raw_humidity);
         }
+        if (this->target_humidity_number_ != nullptr && this->wantedRunStates.target_humidity < 0 &&
+            this->currentRunStates.target_humidity != receivedRunStates.target_humidity) {
+            this->target_humidity_number_->publish_state(static_cast<float>(raw_humidity));
+        }
+        this->currentRunStates.target_humidity = receivedRunStates.target_humidity;
+    } else if (raw_humidity != 0) {
+        ESP_LOGD("Decoder", "[Target Humidity byte out of range: 0x%02X]", raw_humidity);
     }
 
-    // --- AIRFLOW CONTROL START
+    // --- ENERGY SAVING (節電, payload 13) ---
+    // Written as 0x0A in payload 5 of a subtype 0x08 SET; the official decoder
+    // simply tests this readback byte for a non-zero value.
+    receivedRunStates.energy_saving = data[13] > 0 ? 1 : 0;
+    ESP_LOGD("Decoder", "[Energy saving: %s] raw=0x%02X", receivedRunStates.energy_saving ? "ON" : "OFF", data[13]);
+    if (this->wantedRunStates.energy_saving < 0) {
+        this->publishRunStateSwitch(this->energy_saving_switch_, this->currentRunStates.energy_saving,
+            receivedRunStates.energy_saving, "energy saving");
+    }
+
+    // --- SENSOR-DIRECTED AIRFLOW (payload 14) ---
+    // The official clients read this byte unconditionally and gate the feature on
+    // the D0 profile instead. Only fall back to the legacy wide-vane/i-See gate
+    // when no profile was captured, so models without the feature are unaffected.
     if (this->airflow_control_select_ != nullptr) {
-        if (data[10] == 0x80) {
-            if (receivedSettings.iSee) {
-                auto airflow_opt = cn105_protocol::lookup_value_opt(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, data[14]);
-                if (airflow_opt) {
-                    receivedRunStates.airflow_control = *airflow_opt;
-                } else {
-                    ESP_LOGW("Decoder", "Unknown airflow_control byte 0x%02X — keeping previous value", data[14]);
-                    receivedRunStates.airflow_control = this->currentRunStates.airflow_control;
-                }
+        const bool profileKnowsAirflow = this->profile_capabilities_.valid;
+        const bool airflowReported = profileKnowsAirflow
+            ? this->profile_capabilities_.supports_special_airflow()
+            : (data[10] == 0x80 && receivedSettings.iSee);
+
+        if (airflowReported) {
+            auto airflow_opt = cn105_protocol::lookup_value_opt(AIRFLOW_CONTROL_MAP, AIRFLOW_CONTROL, 4, data[14]);
+            if (airflow_opt) {
+                receivedRunStates.airflow_control = *airflow_opt;
             } else {
-                // For some reason data[10] is 0x80, but the i-See sensor is not active. 
-                // Some units let us do this, but the real mode is unknown (might be powersave) and the i-See sensor does not get activated.
-                //receivedRunStates.airflow_control = "N/A";
-                ESP_LOGD("Decoder", "i-See sensor not present/active.");
-                receivedRunStates.airflow_control = AIRFLOW_CONTROL_MAP[0];
+                ESP_LOGW("Decoder", "Unknown airflow_control byte 0x%02X — keeping previous value", data[14]);
+                receivedRunStates.airflow_control = this->currentRunStates.airflow_control;
             }
         } else {
             receivedRunStates.airflow_control = AIRFLOW_CONTROL_MAP[0];
         }
-        if (!this->currentRunStates.airflow_control || strcmp(receivedRunStates.airflow_control, this->currentRunStates.airflow_control) != 0) {
+        if (receivedRunStates.airflow_control != nullptr &&
+            (!this->currentRunStates.airflow_control ||
+                strcmp(receivedRunStates.airflow_control, this->currentRunStates.airflow_control) != 0)) {
             this->currentRunStates.airflow_control = receivedRunStates.airflow_control;
             this->airflow_control_select_->publish_state(receivedRunStates.airflow_control);
         }
     }
 
-    // --- AIRFLOW CONTROL END
-
     this->heatpumpUpdate(receivedSettings);
+}
+
+/**
+ * Publishes a run-state switch only when the decoded value actually changed,
+ * mirroring the behaviour of the legacy HVAC option switches.
+ */
+void CN105Climate::publishRunStateSwitch(HVACOptionSwitch* target, int8_t& current, int8_t received, const char* label) {
+    if (target == nullptr) {
+        current = received;
+        return;
+    }
+    if (current != received || target->state != (received != 0)) {
+        ESP_LOGD("Decoder", "[%s : %s]", label, received ? "ON" : "OFF");
+        current = received;
+        target->publish_state(received != 0);
+    }
 }
 
 void CN105Climate::getRoomTemperatureFromResponsePacket() {
@@ -337,11 +395,14 @@ void CN105Climate::getRoomTemperatureFromResponsePacket() {
     //this->last_received_packet_sensor->publish_state("0x62-> 0x03: Data -> Room temperature");
     //                 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
     // FC 62 01 30 10 03 00 00 0E 00 94 B0 B0 FE 42 00 01 0A 64 00 00 A9
-    //                         RT    OT RT SP ?? ?? ?? RM RM RM
+    //                         RT    OT RT ER ?? ?? ?? RM RM RM SN LG
     // RT = room temperature (in old format and in new format)
     // OT = outside air temperature
-    // SP = room setpoint temperature?
+    // ER = effective room temperature — what the unit regulates on. The official
+    //      client uses it instead of RT when the CD profile sets bit 0x10.
     // RM = indoor unit operating time in minutes
+    // SN = bit 0: stopped-state sensing (thermal/vital sensor) is on
+    // LG = bit 0: Long-airflow fan extension is on
 
     if (data[5] > 1) {
         receivedStatus.outsideAirTemperature = (data[5] - 128) / 2.0f;
@@ -356,11 +417,19 @@ void CN105Climate::getRoomTemperatureFromResponsePacket() {
             data[3], data[6], data[5], data[4], jp_oat_no_offset, jp_oat_minus_8, data[7], data[8], data[13]);
     }
 
-    if (data[6] != 0x00) {
-        int temp = data[6];
+    // Payload 6 is the legacy room temperature and payload 7 the "effective"
+    // one (what the unit is actually regulating on). The official client picks
+    // between them from the CD profile bit 0x10 rather than heuristically; on
+    // the captured ZW9025 the two differ by half a degree.
+    const bool useEffectiveTemp = this->profile_capabilities_.uses_effective_room_temperature();
+    const uint8_t roomTempByte = cn105_protocol::select_room_temperature_byte(data[6], data[7], useEffectiveTemp);
+
+    if (roomTempByte != 0x00) {
+        int temp = roomTempByte;
         temp -= 128;
         receivedStatus.roomTemperature = temp / 2.0f;
-        ESP_LOGD(LOG_TEMP_SENSOR_TAG, "data[6]  --> [Room °C: %f]", receivedStatus.roomTemperature);
+        ESP_LOGD(LOG_TEMP_SENSOR_TAG, "data[%d]  --> [Room °C: %f]",
+            (useEffectiveTemp && data[7] != 0x00) ? 7 : 6, receivedStatus.roomTemperature);
     } else {
         auto room_temp_opt = cn105_protocol::lookup_value_opt(ROOM_TEMP_MAP, ROOM_TEMP, 32, data[3]);
         if (room_temp_opt) {
@@ -385,6 +454,18 @@ void CN105Climate::getRoomTemperatureFromResponsePacket() {
     }
 
     receivedStatus.runtimeHours = float((data[11] << 16) | (data[12] << 8) | data[13]) / 60;
+
+    // Payload 14 bit 0 is the stopped-state sensing (thermal/vital sensor) flag
+    // and payload 15 bit 0 the Long-airflow extension; both are written through
+    // subtype 0x33 and read back here.
+    if (this->wantedRunStates.stopped_sensing < 0) {
+        this->publishRunStateSwitch(this->stopped_sensing_switch_, this->currentRunStates.stopped_sensing,
+            (data[14] & 0x01) ? 1 : 0, "stopped state sensing");
+    }
+    if (this->wantedRunStates.long_airflow < 0) {
+        this->publishRunStateSwitch(this->long_airflow_switch_, this->currentRunStates.long_airflow,
+            (data[15] & 0x01) ? 1 : 0, "long airflow");
+    }
 
     ESP_LOGD("Decoder", "[Room °C: %f]", receivedStatus.roomTemperature);
     ESP_LOGD("Decoder", "[OAT  °C: %f]", receivedStatus.outsideAirTemperature);
@@ -466,6 +547,62 @@ void CN105Climate::getHVACOptionsFromResponsePacket() {
             this->currentRunStates.circulator = receivedRunStates.circulator;
             this->circulator_switch_->publish_state(receivedRunStates.circulator);
         }
+    }
+}
+
+void CN105Climate::decodeProfileFrame() {
+    // PROFILECODE frames arrive on command 0x7B alongside the connection
+    // acknowledgement. The first payload byte identifies the capability table
+    // (C9/CD/D0) or the model string (D1). The tables are read-only: they say
+    // what the model supports and never enable a write by themselves.
+    if (!cn105_protocol::decode_profile_payload(this->parser_.data(), this->parser_.data_length(),
+            this->profile_capabilities_)) {
+        return;
+    }
+
+    const ProfileCapabilities& caps = this->profile_capabilities_;
+    switch (this->parser_.data()[0]) {
+    case 0xc9:
+        ESP_LOGI("Profile", "C9 [6]=0x%02X [9]=0x%02X thermal_image=%s touch_flow=%s auto_mode=%s outside_temp=%s",
+            caps.c9_6, caps.c9_9,
+            caps.supports_thermal_image() ? "yes" : "no",
+            caps.supports_touch_flow() ? "yes" : "no",
+            caps.supports_auto_mode() ? "yes" : "no",
+            caps.supports_outside_temperature() ? "yes" : "no");
+        break;
+    case 0xcd:
+        ESP_LOGI("Profile", "CD [7]=0x%02X [8]=0x%02X [13]=0x%02X humidity_percent=%s energy_saving=%s effective_temp=%s ventilation_assist=%s serial_write=%s",
+            caps.cd_7, caps.cd_8, caps.cd_13,
+            caps.humidity_shown_as_percent() ? "yes" : "no",
+            caps.supports_energy_saving() ? "yes" : "no",
+            caps.uses_effective_room_temperature() ? "yes" : "no",
+            caps.supports_ventilation_assist() ? "yes" : "no",
+            caps.supports_online_serial_write() ? "yes" : "no");
+        break;
+    case 0xd0:
+        ESP_LOGI("Profile", "D0 [1]=0x%02X [2]=0x%02X vital_sensor=%s stopped_sensing=%s fan=%s vane_ud=%s vane_lr=%s long=%s special_airflow=%s",
+            caps.d0_1, caps.d0_2,
+            caps.supports_vital_sensor() ? "yes" : "no",
+            caps.supports_stopped_sensing() ? "yes" : "no",
+            caps.displays_fan_speed() ? "yes" : "no",
+            caps.displays_vertical_vane() ? "yes" : "no",
+            caps.displays_horizontal_vane() ? "yes" : "no",
+            caps.supports_long_airflow() ? "yes" : "no",
+            caps.supports_special_airflow() ? "yes" : "no");
+        break;
+    case 0xd1:
+        ESP_LOGI("Profile", "D1 model=%s", caps.model);
+        break;
+    default:
+        break;
+    }
+
+    if (this->profile_sensor_ != nullptr) {
+        char summary[96];
+        snprintf(summary, sizeof(summary), "%s C9=%02X CD=%02X%02X D0=%02X",
+            caps.model[0] != '\0' ? caps.model : "unknown",
+            caps.c9_6, caps.cd_7, caps.cd_8, caps.d0_2);
+        this->profile_sensor_->publish_state(summary);
     }
 }
 
@@ -564,6 +701,7 @@ void CN105Climate::processCommand() {
         break;
     case 0x7a:  // Connection success (User / standard)
     case 0x7b:  // Connection success (Installer / extended)
+        this->decodeProfileFrame();
         // Log the event on its INFO tag and packet details through hpPacketDebug.
         ESP_LOGI(LOG_CONN_TAG, "--> Heatpump did reply: connection success (%s, 0x%02X)! <--",
             (this->parser_.command() == 0x7b) ? "Installer" : "User",
@@ -640,7 +778,7 @@ void CN105Climate::publishStateToHA(heatpumpSettings& settings) {
         checkVaneSettings(settings);
     }
 
-    if (this->wantedSettings.left_vane == nullptr) { // to prevent overwriting a user demand
+    if (this->wantedRunStates.left_vane == nullptr) { // to prevent overwriting a user demand
         currentSettings.left_vane = settings.left_vane;
     }
 

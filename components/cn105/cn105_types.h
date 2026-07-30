@@ -67,6 +67,9 @@ static const int MAX_NON_RESPONSE_REQ = 5;
 
 static const uint8_t CONTROL_PACKET_1[5] = { 0x01,    0x02,  0x04,  0x08, 0x10 };
 static const uint8_t CONTROL_PACKET_2[1] = { 0x01 };
+// Payload-1 control bits of a subtype 0x08 SET. The official field masks now
+// live in cn105_protocol::apply_run_state_request(); this table is kept only for
+// reference: 0x04 humidity, 0x08 energy saving, 0x10 buzzer, 0x20 special airflow.
 static const uint8_t RUN_STATE_PACKET_1[5] = { 0x01, 0x04, 0x08, 0x10, 0x20 };
 static const uint8_t RUN_STATE_PACKET_2[5] = { 0x02, 0x04, 0x08, 0x10, 0x20 };
 static const uint8_t POWER[2] = { 0x00, 0x01 };
@@ -97,11 +100,13 @@ static const int ROOM_TEMP_MAP[32] = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 2
 static const uint8_t TIMER_MODE[4] = { 0x00,  0x01,  0x02, 0x03 };
 static const char* TIMER_MODE_MAP[4] = { "NONE", "OFF", "ON", "BOTH" };
 
-// 0x03 = MURANASHI (むらなし / "even-spread") added for MSZ-ZW (Japanese
-// domestic 2025 Z-series). The remote's "むらなし" button toggles this value;
-// previously generated "Unknown airflow_control byte 0x03 — keeping previous value".
+// Sensor-directed airflow, written in payload 6 of a subtype 0x08 SET and read
+// back from payload 14 of a 0x02 response. Both official Mitsubishi clients use
+// the same enum: 0 = no sensor-directed airflow, 1 = avoid (風よけ), 2 = direct
+// (風あて), 3 = even spread (むらなし). Raw 0 was previously labelled "EVEN",
+// which collided with the genuine even-spread state at raw 3.
 static const uint8_t AIRFLOW_CONTROL[4] = { 0x00, 0x01, 0x02, 0x03 };
-static const char* AIRFLOW_CONTROL_MAP[4] = { "EVEN", "INDIRECT", "DIRECT", "MURANASHI" };
+static const char* AIRFLOW_CONTROL_MAP[4] = { "NORMAL", "INDIRECT", "DIRECT", "MURANASHI" };
 
 static const uint8_t STAGE[7] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
 static const char* STAGE_MAP[7] = { "IDLE", "LOW", "GENTLE", "MEDIUM", "MODERATE", "HIGH", "DIFFUSE" };
@@ -133,10 +138,16 @@ static const char* SUB_MODE_MAP[6] = { "NORMAL", "WARMUP", "DEFROST", "PREHEAT",
 // These labels are distinct from the older AUTO_COOL/AUTO_HEAT/AUTO_LEADER
 // labels which appear to belong to a different protocol revision (older units
 // where this byte was a 4-state enum rather than a bitfield).
-static const int AUTO_SUB_MODE_LEN = 9;
-static const uint8_t AUTO_SUB_MODE[AUTO_SUB_MODE_LEN] = { 0x00, 0x01, 0x02, 0x03, 0x08, 0x18, 0x40, 0x41, 0x43 };
+// 0x18 / 0x28 are the JP auto-direction states both official Mitsubishi clients
+// decode from this byte: 0x18 means the unit picked heating, 0x28 means it
+// picked cooling. 0x18 was previously labelled the generic "JP_AUTO" and 0x28
+// was unknown. See cn105_protocol::decode_auto_direction() for the bit rule
+// that also covers the values not enumerated here.
+static const int AUTO_SUB_MODE_LEN = 10;
+static const uint8_t AUTO_SUB_MODE[AUTO_SUB_MODE_LEN] = { 0x00, 0x01, 0x02, 0x03, 0x08, 0x18, 0x28, 0x40, 0x41, 0x43 };
 static const char* AUTO_SUB_MODE_MAP[AUTO_SUB_MODE_LEN] = {
-    "AUTO_OFF", "AUTO_COOL", "AUTO_HEAT", "AUTO_LEADER", "JP_NON_AUTO", "JP_AUTO",
+    "AUTO_OFF", "AUTO_COOL", "AUTO_HEAT", "AUTO_LEADER", "JP_NON_AUTO",
+    "JP_AUTO_HEATING", "JP_AUTO_COOLING",
     "AUTO_INACTIVE", "AUTO_IDLE", "AUTO_ACTIVE"
 };
 
@@ -268,17 +279,35 @@ struct heatpumpStatus {
     }
 };
 
+// Run states are everything the heat pump exposes outside the main 0x01 SET.
+// They are grouped by the frame that carries them:
+//   subtype 0x08 — airflow_control, energy_saving, target_humidity, thermal_image
+//   subtype 0x33 — left_vane, long_airflow, stopped_sensing
+//   subtype 0x42 — air_purifier, night_mode, circulator (legacy, non-JP models)
+// Tri-state int8_t members use -1 for "not known / nothing requested".
 struct heatpumpRunStates {
     int8_t air_purifier = -1;
     int8_t night_mode = -1;
     int8_t circulator = -1;
     const char* airflow_control = nullptr;
+    int8_t energy_saving = -1;
+    int8_t target_humidity = -1;
+    int8_t thermal_image = -1;
+    int8_t long_airflow = -1;
+    int8_t stopped_sensing = -1;
+    const char* left_vane = nullptr;
 
     void resetSettings() {
         air_purifier = -1;
         night_mode = -1;
         circulator = -1;
         airflow_control = nullptr;
+        energy_saving = -1;
+        target_humidity = -1;
+        thermal_image = -1;
+        long_airflow = -1;
+        stopped_sensing = -1;
+        left_vane = nullptr;
     }
 
     // Trivial copy — all members are scalars/pointers
@@ -288,7 +317,13 @@ struct heatpumpRunStates {
         return air_purifier == other.air_purifier &&
             night_mode == other.night_mode &&
             circulator == other.circulator &&
-            airflow_control == other.airflow_control;
+            airflow_control == other.airflow_control &&
+            energy_saving == other.energy_saving &&
+            target_humidity == other.target_humidity &&
+            thermal_image == other.thermal_image &&
+            long_airflow == other.long_airflow &&
+            stopped_sensing == other.stopped_sensing &&
+            left_vane == other.left_vane;
     }
 
     bool operator!=(const heatpumpRunStates& other) const {
@@ -300,11 +335,14 @@ struct wantedHeatpumpRunStates : heatpumpRunStates {
     bool hasChanged = false;
     bool hasBeenSent = false;
     long lastChange = 0;
+    // One-shot: the buzzer command carries no state and is never read back.
+    bool buzzer = false;
 
     void resetSettings() {
         heatpumpRunStates::resetSettings();
         hasChanged = false;
         hasBeenSent = false;
+        buzzer = false;
     }
 
     // Trivial copy — all members are scalars

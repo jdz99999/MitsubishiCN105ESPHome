@@ -155,8 +155,10 @@ const char* CN105Climate::getVaneSetting() {
 }
 
 const char* CN105Climate::getLeftVaneSetting() {
-    if (this->wantedSettings.left_vane) {
-        return this->wantedSettings.left_vane;
+    // The left vane is written through subtype 0x33, so its pending value lives
+    // with the other run states rather than in wantedSettings.
+    if (this->wantedRunStates.left_vane) {
+        return this->wantedRunStates.left_vane;
     } else {
         return this->currentSettings.left_vane;
     }
@@ -252,9 +254,8 @@ void CN105Climate::createPacket(uint8_t* packet) {
         if (idx >= 0) { packet[11] = FAN[idx]; packet[6] |= CONTROL_PACKET_1[3]; } else { ESP_LOGW(TAG, "Ignoring invalid fan setting while building packet"); }
     }
 
-    if (this->wantedSettings.vane != nullptr || this->wantedSettings.left_vane != nullptr) {
+    if (this->wantedSettings.vane != nullptr) {
         std::optional<uint8_t> right_vane_byte;
-        std::optional<uint8_t> left_vane_byte;
 
         const char* right_vane = getVaneSetting();
         if (right_vane != nullptr) {
@@ -267,18 +268,7 @@ void CN105Climate::createPacket(uint8_t* packet) {
             }
         }
 
-        const char* left_vane = getLeftVaneSetting();
-        if (left_vane != nullptr) {
-            int left_idx = lookupByteMapIndex(LEFT_VANE_MAP, 7, left_vane, "left_vane (write)");
-            if (left_idx >= 0) {
-                left_vane_byte = LEFT_VANE[left_idx];
-                ESP_LOGD(TAG, "heatpump left vane -> %s", left_vane);
-            } else {
-                ESP_LOGW(TAG, "Ignoring invalid left vane setting while building packet");
-            }
-        }
-
-        cn105_protocol::apply_vertical_vane_control(packet, right_vane_byte, left_vane_byte);
+        cn105_protocol::apply_vertical_vane_control(packet, right_vane_byte);
     }
 
     if (this->wantedSettings.wideVane != nullptr) {
@@ -311,6 +301,10 @@ void CN105Climate::createPacket(uint8_t* packet) {
         } else { ESP_LOGW(TAG, "Ignoring invalid wideVane setting while building packet"); }
     }
 
+    // Payload 15 is the command-origin marker, not a vane byte. Both official
+    // Mitsubishi clients always stamp it: 0x41 for a local command (what this
+    // firmware is), 0x42 for a cloud command.
+    cn105_protocol::set_command_origin(packet, cn105_protocol::SET_ORIGIN_INSIDE);
 
     // add the checksum
     uint8_t chkSum = checkSum(packet, 21);
@@ -335,12 +329,9 @@ void CN105Climate::publishWantedSettingsStateToHA() {
     }
 
 
-    if ((this->wantedSettings.vane != nullptr) || (this->wantedSettings.left_vane != nullptr) || (this->wantedSettings.wideVane != nullptr)) {
+    if ((this->wantedSettings.vane != nullptr) || (this->wantedSettings.wideVane != nullptr)) {
         if (this->wantedSettings.vane == nullptr) { // to prevent a nullpointer error
             this->wantedSettings.vane = this->currentSettings.vane;
-        }
-        if (this->wantedSettings.left_vane == nullptr) { // to prevent a nullpointer error
-            this->wantedSettings.left_vane = this->currentSettings.left_vane;
         }
         if (this->wantedSettings.wideVane == nullptr) { // to prevent a nullpointer error
             this->wantedSettings.wideVane = this->currentSettings.wideVane;
@@ -396,6 +387,37 @@ void CN105Climate::publishWantedRunStatesStateToHA() {
             ESP_LOGI(TAG, "circulator setting changed");
             this->circulator_switch_->publish_state(wantedRunStates.circulator);
         }
+    }
+    if (this->wantedRunStates.left_vane != nullptr && this->left_vane_select_ != nullptr) {
+        if (this->hasChanged(this->left_vane_select_->current_option(), this->wantedRunStates.left_vane, "select left vane")) {
+            ESP_LOGI(TAG, "left vane setting changed");
+            this->left_vane_select_->publish_state(this->wantedRunStates.left_vane);
+        }
+    }
+    if (this->wantedRunStates.energy_saving > -1 && this->energy_saving_switch_ != nullptr &&
+        this->energy_saving_switch_->state != (this->wantedRunStates.energy_saving != 0)) {
+        ESP_LOGI(TAG, "energy saving setting changed");
+        this->energy_saving_switch_->publish_state(this->wantedRunStates.energy_saving != 0);
+    }
+    if (this->wantedRunStates.thermal_image > -1 && this->thermal_image_switch_ != nullptr &&
+        this->thermal_image_switch_->state != (this->wantedRunStates.thermal_image != 0)) {
+        ESP_LOGI(TAG, "thermal image setting changed");
+        this->thermal_image_switch_->publish_state(this->wantedRunStates.thermal_image != 0);
+    }
+    if (this->wantedRunStates.long_airflow > -1 && this->long_airflow_switch_ != nullptr &&
+        this->long_airflow_switch_->state != (this->wantedRunStates.long_airflow != 0)) {
+        ESP_LOGI(TAG, "long airflow setting changed");
+        this->long_airflow_switch_->publish_state(this->wantedRunStates.long_airflow != 0);
+    }
+    if (this->wantedRunStates.stopped_sensing > -1 && this->stopped_sensing_switch_ != nullptr &&
+        this->stopped_sensing_switch_->state != (this->wantedRunStates.stopped_sensing != 0)) {
+        ESP_LOGI(TAG, "stopped state sensing setting changed");
+        this->stopped_sensing_switch_->publish_state(this->wantedRunStates.stopped_sensing != 0);
+    }
+    if (this->wantedRunStates.target_humidity > -1 && this->target_humidity_number_ != nullptr) {
+        ESP_LOGI(TAG, "target humidity setting changed");
+        this->target_humidity_number_->publish_state(
+            static_cast<float>(cn105_protocol::clamp_target_humidity(this->wantedRunStates.target_humidity)));
     }
 }
 
@@ -585,27 +607,53 @@ void CN105Climate::sendRemoteTemperature() {
     this->sendRemoteTemperaturePacket();
 }
 
-void CN105Climate::sendWantedRunStates() {
+/**
+ * Builds and sends the official subtype 0x08 run-state frame: sensor-directed
+ * airflow, dehumidification target, energy saving and the one-shot buzzer, plus
+ * the legacy 0x42-style options some non-JP models accept here.
+ * Returns true when a packet was written.
+ */
+bool CN105Climate::sendRunStateFrame() {
     uint8_t packet[PACKET_LEN] = {};
 
     prepareSetPacket(packet, PACKET_LEN);
 
     packet[5] = 0x08;
+
+    cn105_protocol::RunStateRequest request{};
+
     if (this->wantedRunStates.airflow_control != nullptr) {
         ESP_LOGD(TAG, "airflow control -> %s", getAirflowControlSetting());
         int idx = lookupByteMapIndex(AIRFLOW_CONTROL_MAP, 4, getAirflowControlSetting(), "run state (write)");
         if (idx >= 0) {
-            packet[11] = AIRFLOW_CONTROL[idx];
-            packet[6] |= RUN_STATE_PACKET_1[4];
+            request.special_airflow = AIRFLOW_CONTROL[idx];
         } else {
             ESP_LOGW(TAG, "Ignoring invalid airflow control setting while building packet");
         }
     }
+    if (this->wantedRunStates.energy_saving > -1) {
+        ESP_LOGI(TAG, "energy saving -> %s", this->wantedRunStates.energy_saving ? "ON" : "OFF");
+        request.energy_saving = this->wantedRunStates.energy_saving != 0;
+    }
+    if (this->wantedRunStates.target_humidity > -1) {
+        const uint8_t humidity = cn105_protocol::clamp_target_humidity(this->wantedRunStates.target_humidity);
+        ESP_LOGI(TAG, "target humidity -> %u%%", static_cast<unsigned>(humidity));
+        request.target_humidity = humidity;
+    }
+    if (this->wantedRunStates.buzzer) {
+        ESP_LOGI(TAG, "buzzer -> beep");
+        request.buzzer = true;
+    }
+
+    const bool hasOfficialField = cn105_protocol::apply_run_state_request(packet, request);
+    bool hasLegacyField = false;
+
     if (this->wantedRunStates.air_purifier > -1) {
         if (getAirPurifierRunState() != currentRunStates.air_purifier) {
             ESP_LOGI(TAG, "air purifier switch state -> %s", getAirPurifierRunState() ? "ON" : "OFF");
             packet[17] = getAirPurifierRunState() ? 0x01 : 0x00;
             packet[7] |= RUN_STATE_PACKET_2[1];
+            hasLegacyField = true;
         }
     }
     if (this->wantedRunStates.night_mode > -1) {
@@ -613,6 +661,7 @@ void CN105Climate::sendWantedRunStates() {
             ESP_LOGI(TAG, "night mode switch state -> %s", this->getNightModeRunState() ? "ON" : "OFF");
             packet[18] = getNightModeRunState() ? 0x01 : 0x00;
             packet[7] |= RUN_STATE_PACKET_2[2];
+            hasLegacyField = true;
         }
     }
     if (this->wantedRunStates.circulator > -1) {
@@ -620,7 +669,12 @@ void CN105Climate::sendWantedRunStates() {
             ESP_LOGI(TAG, "circulator switch state -> %s", getCirculatorRunState() ? "ON" : "OFF");
             packet[19] = getCirculatorRunState() ? 0x01 : 0x00;
             packet[7] |= RUN_STATE_PACKET_2[3];
+            hasLegacyField = true;
         }
+    }
+
+    if (!hasOfficialField && !hasLegacyField) {
+        return false;
     }
 
     // Add the checksum
@@ -628,9 +682,114 @@ void CN105Climate::sendWantedRunStates() {
     packet[21] = chkSum;
     ESP_LOGD(LOG_SET_RUN_STATE, "Sending set run state package (0x08)");
     writePacket(packet, PACKET_LEN);
+    return true;
+}
 
+/**
+ * Builds and sends the subtype 0x33 frame: stopped-state sensing, the left
+ * vertical vane and the Long-airflow fan extension. This is the frame the
+ * official clients use for the left vane — payload 15 of the 0x01 SET is the
+ * command-origin marker and must never carry a vane byte.
+ * Returns true when a packet was written.
+ */
+bool CN105Climate::sendVaneExtensionFrame() {
+    cn105_protocol::VaneExtensionRequest request{};
+
+    if (this->wantedRunStates.left_vane != nullptr) {
+        const char* left_vane = getLeftVaneSetting();
+        int idx = lookupByteMapIndex(LEFT_VANE_MAP, 7, left_vane, "left_vane (write)");
+        if (idx >= 0) {
+            ESP_LOGI(TAG, "heatpump left vane -> %s", left_vane);
+            request.left_vane = LEFT_VANE[idx];
+        } else {
+            ESP_LOGW(TAG, "Ignoring invalid left vane setting while building packet");
+        }
+    }
+    if (this->wantedRunStates.long_airflow > -1) {
+        ESP_LOGI(TAG, "long airflow -> %s", this->wantedRunStates.long_airflow ? "ON" : "OFF");
+        request.long_airflow = this->wantedRunStates.long_airflow != 0;
+    }
+    if (this->wantedRunStates.stopped_sensing > -1) {
+        ESP_LOGI(TAG, "stopped state sensing -> %s", this->wantedRunStates.stopped_sensing ? "ON" : "OFF");
+        request.stopped_sensing = this->wantedRunStates.stopped_sensing != 0;
+    }
+
+    uint8_t packet[PACKET_LEN] = {};
+    prepareSetPacket(packet, PACKET_LEN);
+    if (!cn105_protocol::apply_vane_extension_request(packet, request)) {
+        return false;
+    }
+
+    packet[21] = checkSum(packet, 21);
+    ESP_LOGD(LOG_SET_RUN_STATE, "Sending vane extension package (0x33)");
+    writePacket(packet, PACKET_LEN);
+    return true;
+}
+
+/**
+ * Builds and sends the dedicated thermal-image enable frame. The official
+ * client sends this as its own subtype 0x08 command with control bit 0x80,
+ * never merged with the other run-state fields.
+ * Returns true when a packet was written.
+ */
+bool CN105Climate::sendThermalImageFrame() {
+    if (this->wantedRunStates.thermal_image < 0) {
+        return false;
+    }
+
+    uint8_t packet[PACKET_LEN] = {};
+    prepareSetPacket(packet, PACKET_LEN);
+    cn105_protocol::build_thermal_image_packet(packet, this->wantedRunStates.thermal_image != 0);
+    packet[21] = checkSum(packet, 21);
+
+    ESP_LOGI(TAG, "thermal image -> %s", this->wantedRunStates.thermal_image ? "ON" : "OFF");
+    ESP_LOGD(LOG_SET_RUN_STATE, "Sending thermal image package (0x08/0x80)");
+    writePacket(packet, PACKET_LEN);
+    return true;
+}
+
+bool CN105Climate::hasPendingRunStates() const {
+    const wantedHeatpumpRunStates& wanted = this->wantedRunStates;
+    return wanted.airflow_control != nullptr || wanted.energy_saving > -1 ||
+        wanted.target_humidity > -1 || wanted.buzzer ||
+        wanted.air_purifier > -1 || wanted.night_mode > -1 || wanted.circulator > -1 ||
+        wanted.left_vane != nullptr || wanted.long_airflow > -1 ||
+        wanted.stopped_sensing > -1 || wanted.thermal_image > -1;
+}
+
+void CN105Climate::sendWantedRunStates() {
+    // Run states span three different SET frames. Send one frame per pass so the
+    // heat pump acknowledges each write, and clear only the fields it carried.
     this->publishWantedRunStatesStateToHA();
 
-    this->wantedRunStates.resetSettings();
+    if (this->sendRunStateFrame()) {
+        this->wantedRunStates.airflow_control = nullptr;
+        this->wantedRunStates.energy_saving = -1;
+        this->wantedRunStates.target_humidity = -1;
+        this->wantedRunStates.buzzer = false;
+        this->wantedRunStates.air_purifier = -1;
+        this->wantedRunStates.night_mode = -1;
+        this->wantedRunStates.circulator = -1;
+    } else if (this->sendVaneExtensionFrame()) {
+        this->wantedRunStates.left_vane = nullptr;
+        this->wantedRunStates.long_airflow = -1;
+        this->wantedRunStates.stopped_sensing = -1;
+    } else if (this->sendThermalImageFrame()) {
+        this->wantedRunStates.thermal_image = -1;
+    } else {
+        ESP_LOGD(LOG_SET_RUN_STATE, "Nothing left to write, dropping the run state request");
+        this->wantedRunStates.resetSettings();
+        return;
+    }
+
+    if (this->hasPendingRunStates()) {
+        // Another frame is still queued: re-arm so the next loop pass sends it.
+        this->wantedRunStates.hasChanged = true;
+        this->wantedRunStates.hasBeenSent = false;
+        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+    } else {
+        this->wantedRunStates.resetSettings();
+    }
+
     this->loopCycle.deferCycle();
 }

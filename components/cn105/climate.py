@@ -109,6 +109,15 @@ CONF_AIRFLOW_CONTROL_SELECT = "airflow_control_select"
 CONF_AIR_PURIFIER_SWITCH = "air_purifier_switch"
 CONF_NIGHT_MODE_SWITCH = "night_mode_switch"
 CONF_CIRCULATOR_SWITCH = "circulator_switch"
+# Controls that mirror the official Mitsubishi encoders (subtypes 0x08 / 0x33).
+CONF_ENERGY_SAVING_SWITCH = "energy_saving_switch"
+CONF_THERMAL_IMAGE_SWITCH = "thermal_image_switch"
+CONF_LONG_AIRFLOW_SWITCH = "long_airflow_switch"
+CONF_STOPPED_SENSING_SWITCH = "stopped_sensing_switch"
+CONF_TARGET_HUMIDITY_NUMBER = "target_humidity_number"
+CONF_BUZZER_BUTTON = "buzzer_button"
+CONF_AUTO_DIRECTION_SENSOR = "auto_direction_sensor"
+CONF_PROFILE_SENSOR = "profile_sensor"
 CONF_HARDWARE_SETTINGS = "hardware_settings"
 CONF_CODE = "code"
 CONF_OPTIONS = "options"
@@ -183,6 +192,12 @@ JpAiAutoSensor = cg.global_ns.class_(
 )
 ErrorCodeSensor = cg.global_ns.class_(
     "ErrorCodeSensor", text_sensor.TextSensor, cg.Component
+)
+AutoDirectionSensor = cg.global_ns.class_(
+    "AutoDirectionSensor", text_sensor.TextSensor, cg.Component
+)
+ProfileSensor = cg.global_ns.class_(
+    "ProfileSensor", text_sensor.TextSensor, cg.Component
 )
 RemoteTempSourceInfo = cg.global_ns.class_(
     "RemoteTempSourceInfo", text_sensor.TextSensor, cg.Component
@@ -317,6 +332,14 @@ JP_AI_AUTO_SENSOR_SCHEMA = text_sensor.text_sensor_schema(JpAiAutoSensor).extend
 
 ERROR_CODE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(ErrorCodeSensor).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(ErrorCodeSensor)}
+)
+
+AUTO_DIRECTION_SENSOR_SCHEMA = text_sensor.text_sensor_schema(AutoDirectionSensor).extend(
+    {cv.GenerateID(CONF_ID): cv.declare_id(AutoDirectionSensor)}
+)
+
+PROFILE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(ProfileSensor).extend(
+    {cv.GenerateID(CONF_ID): cv.declare_id(ProfileSensor)}
 )
 
 REMOTE_TEMP_SOURCE_SCHEMA = cv.Schema(
@@ -465,6 +488,14 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_AIR_PURIFIER_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
             cv.Optional(CONF_NIGHT_MODE_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
             cv.Optional(CONF_CIRCULATOR_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
+            cv.Optional(CONF_ENERGY_SAVING_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
+            cv.Optional(CONF_THERMAL_IMAGE_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
+            cv.Optional(CONF_LONG_AIRFLOW_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
+            cv.Optional(CONF_STOPPED_SENSING_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
+            cv.Optional(CONF_TARGET_HUMIDITY_NUMBER): FUNCTIONS_NUMBER_SCHEMA,
+            cv.Optional(CONF_BUZZER_BUTTON): FUNCTIONS_BUTTON_SCHEMA,
+            cv.Optional(CONF_AUTO_DIRECTION_SENSOR): AUTO_DIRECTION_SENSOR_SCHEMA,
+            cv.Optional(CONF_PROFILE_SENSOR): PROFILE_SENSOR_SCHEMA,
             cv.Optional(CONF_HARDWARE_SETTINGS): HARDWARE_SETTING_SCHEMA,
             cv.Optional(CONF_RAW_PROBE): RAW_PROBE_SCHEMA,
             cv.Optional(
@@ -717,6 +748,43 @@ def to_code(config):
     if CONF_CIRCULATOR_SWITCH in config:
         switch_var = yield switch.new_switch(config[CONF_CIRCULATOR_SWITCH])
         cg.add(var.set_circulator_switch(switch_var))
+
+    if CONF_ENERGY_SAVING_SWITCH in config:
+        switch_var = yield switch.new_switch(config[CONF_ENERGY_SAVING_SWITCH])
+        cg.add(var.set_energy_saving_switch(switch_var))
+
+    if CONF_THERMAL_IMAGE_SWITCH in config:
+        switch_var = yield switch.new_switch(config[CONF_THERMAL_IMAGE_SWITCH])
+        cg.add(var.set_thermal_image_switch(switch_var))
+
+    if CONF_LONG_AIRFLOW_SWITCH in config:
+        switch_var = yield switch.new_switch(config[CONF_LONG_AIRFLOW_SWITCH])
+        cg.add(var.set_long_airflow_switch(switch_var))
+
+    if CONF_STOPPED_SENSING_SWITCH in config:
+        switch_var = yield switch.new_switch(config[CONF_STOPPED_SENSING_SWITCH])
+        cg.add(var.set_stopped_sensing_switch(switch_var))
+
+    if CONF_TARGET_HUMIDITY_NUMBER in config:
+        # 40-70 % in 10 % steps, the range the official remote and app expose.
+        number_var = yield number.new_number(
+            config[CONF_TARGET_HUMIDITY_NUMBER], min_value=40.0, max_value=70.0, step=10.0
+        )
+        cg.add(var.set_target_humidity_number(number_var))
+
+    if CONF_BUZZER_BUTTON in config:
+        button_var = yield button.new_button(config[CONF_BUZZER_BUTTON])
+        cg.add(var.set_buzzer_button(button_var))
+
+    if CONF_AUTO_DIRECTION_SENSOR in config:
+        tsensor_var = yield text_sensor.new_text_sensor(
+            config[CONF_AUTO_DIRECTION_SENSOR]
+        )
+        cg.add(var.set_auto_direction_sensor(tsensor_var))
+
+    if CONF_PROFILE_SENSOR in config:
+        tsensor_var = yield text_sensor.new_text_sensor(config[CONF_PROFILE_SENSOR])
+        cg.add(var.set_profile_sensor(tsensor_var))
 
     # Set Fahrenheit compatibility mode (cast int to FahrenheitMode enum)
     # The enum validator returns the integer value from FAHRENHEIT_MODES dict

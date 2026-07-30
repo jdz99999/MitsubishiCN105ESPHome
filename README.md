@@ -255,7 +255,7 @@ climate:
       name: Auto Sub Mode
       entity_category: diagnostic
       disabled_by_default: true
-    # JP ZW-series diagnostic state: OFF, AUTO, AI_AUTO, or OTHER.
+    # JP diagnostic state: OFF, AUTO, AI_AUTO_HEATING, AI_AUTO_COOLING, or OTHER.
     jp_ai_auto_sensor:
       name: JP AI Auto
       entity_category: diagnostic
@@ -913,9 +913,13 @@ jp_ai_auto_sensor:
 
 - `stage_sensor` is the actual fan speed of the indoor unit. This is called stage in some documentation. Reported speeds include `IDLE`, `LOW`, `GENTLE`, `MEDIUM`, `MODERATE`, `HIGH` and `DIFFUSE`, named using Mitsubishi documentation conventions.
 
-- `auto_sub_mode_sensor` indicates what actual mode the unit is in when in AUTO. Common modes include `AUTO_OFF`, `AUTO_COOL`, `AUTO_HEAT`, and `AUTO_LEADER`. Newer units may report `AUTO_INACTIVE`, `AUTO_IDLE`, or `AUTO_ACTIVE`. JP captures use `JP_NON_AUTO` for non-automatic modes and `JP_AUTO` for both Home Assistant AUTO and remote AI Auto; use `jp_ai_auto_sensor` to distinguish the latter.
+- `auto_sub_mode_sensor` indicates what actual mode the unit is in when in AUTO. Common modes include `AUTO_OFF`, `AUTO_COOL`, `AUTO_HEAT`, and `AUTO_LEADER`. Newer units may report `AUTO_INACTIVE`, `AUTO_IDLE`, or `AUTO_ACTIVE`. JP units use `JP_NON_AUTO` for non-automatic modes and `JP_AUTO_HEATING` / `JP_AUTO_COOLING` for the direction the unit chose; `auto_direction_sensor` reports the same information for values outside this table.
 
-- `jp_ai_auto_sensor` is a JP ZW-series diagnostic sensor based on the capture-confirmed settings signature. It reports `OFF`, `AUTO`, `AI_AUTO`, or `OTHER`. Plain AUTO was not present in the available capture set, so validate this entity on each model before using it for automation.
+- `jp_ai_auto_sensor` is a JP diagnostic sensor derived from the raw operating-mode byte, which is how the official Mitsubishi clients identify AI Auto. It reports `OFF`, `AUTO`, `AI_AUTO_HEATING`, `AI_AUTO_COOLING`, or `OTHER`. Raw mode `0x19` is auto-heating and `0x1B` is auto-cooling; both also appear as plain `AUTO` on the climate entity.
+
+- `auto_direction_sensor` reports the direction the unit picked while running an automatic mode: `AUTO_HEATING`, `AUTO_COOLING`, or `NONE`. It is decoded from the `0x09` response and works on units whose value is not in the `auto_sub_mode_sensor` table.
+
+- `profile_sensor` reports the model string and the capability bytes the indoor unit publishes during the handshake, for example `MSZZ***9025* C9=DF CD=1FD1 D0=EF`. Use it to confirm which optional features a given unit actually advertises.
 
 - `sub_mode_sensor` indicates additional detail on the current behavior of the unit. The Sub Modes are:
   - `NORMAL` - the unit is in an active mode (heat, cool, dry, etc.) and is either running, or waiting to run
@@ -927,9 +931,57 @@ Some examples of how these all fit together: Unit 1 is in AUTO set to 20C and Un
 
 ### JP ZW-Series Airflow Controls
 
-JP ZW-series captures confirm independent right and left vertical vanes. Configure `vertical_vane_select` for the right vane and `left_vane_select` for the left vane. The extended horizontal-vane map includes `←−JP`, `SPLIT_4-2`, and `SPLIT_2-2-2`. The airflow-control map includes `EVEN`, `INDIRECT`, `DIRECT`, and `MURANASHI`.
+JP ZW-series captures confirm independent right and left vertical vanes. Configure `vertical_vane_select` for the right vane and `left_vane_select` for the left vane. The extended horizontal-vane map includes `←−JP`, `SPLIT_4-2`, and `SPLIT_2-2-2`. The airflow-control map is `NORMAL`, `INDIRECT` (風よけ / avoid), `DIRECT` (風あて), and `MURANASHI` (むらなし / even spread); `NORMAL` means no sensor-directed airflow.
 
-Readback for these values is capture-confirmed. The available captures do not contain vane or airflow SET frames, so validate writes on the target hardware before relying on them in unattended automation.
+The left vane is written through a separate SET frame (subtype `0x33`), not through the main settings frame. Payload 15 of the main frame is the command-origin marker and is always sent as `0x41` for local control.
+
+Readback for these values is capture-confirmed. Write positions match the official Mitsubishi encoders, but validate them on the target hardware before relying on them in unattended automation.
+
+### JP Comfort and Sensing Controls
+
+These optional entities implement fields that the official Mitsubishi clients encode. Each one refuses to send a command if the unit's capability profile says the model does not have the feature; when no profile is received, the control stays usable.
+
+```yaml
+climate:
+  - platform: cn105
+    # ... your existing config ...
+    energy_saving_switch:
+      name: Energy Saving
+      disabled_by_default: true
+    target_humidity_number:
+      name: Dehumidification Target
+      disabled_by_default: true
+    long_airflow_switch:
+      name: Long Airflow
+      disabled_by_default: true
+    stopped_sensing_switch:
+      name: Stopped State Sensing
+      disabled_by_default: true
+    thermal_image_switch:
+      name: Thermal Image
+      disabled_by_default: true
+    buzzer_button:
+      name: Beep
+      entity_category: config
+      disabled_by_default: true
+    auto_direction_sensor:
+      name: Auto Direction
+      entity_category: diagnostic
+      disabled_by_default: true
+    profile_sensor:
+      name: Model Profile
+      entity_category: diagnostic
+      disabled_by_default: true
+```
+
+- `energy_saving_switch` is the persistent 節電 energy-saving mode. It is not Peak Cut.
+- `target_humidity_number` is the 除湿調節 dehumidification target, 40-70 % in 10 % steps. Units with a Weak/Standard/Strong remote display map those to 60/50/40.
+- `long_airflow_switch` is ロング気流 long-throw airflow, a fan extension. It is not High Power.
+- `stopped_sensing_switch` enables sensing while the unit is stopped (the thermal/vital sensor path).
+- `thermal_image_switch` enables the Move Eye thermal-image feature. Only the on/off state travels over CN105; the image itself is retrieved by Mitsubishi's app from their cloud and is not available to this component.
+- `buzzer_button` triggers a single confirmation beep.
+
+Room temperature is selected from the unit's capability profile: models that advertise an effective room temperature report it in a separate byte, and this component uses that byte when the profile sets the flag.
 
 ### Raw Protocol Probe
 

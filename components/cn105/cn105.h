@@ -15,6 +15,8 @@
 #include "outside_air_temperature_sensor.h"
 #include "auto_sub_mode_sensor.h"
 #include "jp_ai_auto_sensor.h"
+#include "auto_direction_sensor.h"
+#include "profile_sensor.h"
 #include "isee_sensor.h"
 #include "stage_sensor.h"
 #include "functions_sensor.h"
@@ -63,7 +65,14 @@ namespace esphome {
 
     public:
 
+        // Capability bytes learned from the indoor unit's PROFILECODE frames.
+        // These are read-only: they describe features the model advertises and
+        // never enable a write on their own.
+        using ProfileCapabilities = cn105_protocol::ProfileCapabilities;
+
         CN105Climate(uart::UARTComponent* hw_serial);
+
+        const ProfileCapabilities& profile_capabilities() const { return this->profile_capabilities_; }
 
         enum class VaneType {
             STANDARD = 0,
@@ -88,6 +97,16 @@ namespace esphome {
         void set_air_purifier_switch(HVACOptionSwitch* air_purifier_switch);
         void set_night_mode_switch(HVACOptionSwitch* night_mode_switch);
         void set_circulator_switch(HVACOptionSwitch* circulator_switch);
+
+        // Controls derived from the official Mitsubishi encoders (subtypes 0x08/0x33).
+        void set_energy_saving_switch(HVACOptionSwitch* energy_saving_switch);
+        void set_thermal_image_switch(HVACOptionSwitch* thermal_image_switch);
+        void set_long_airflow_switch(HVACOptionSwitch* long_airflow_switch);
+        void set_stopped_sensing_switch(HVACOptionSwitch* stopped_sensing_switch);
+        void set_target_humidity_number(FunctionsNumber* target_humidity_number);
+        void set_buzzer_button(FunctionsButton* buzzer_button);
+        void set_auto_direction_sensor(esphome::text_sensor::TextSensor* auto_direction_sensor);
+        void set_profile_sensor(esphome::text_sensor::TextSensor* profile_sensor);
 
         void add_hardware_setting(HardwareSettingSelect* setting);
         void set_hardware_settings_interval(uint32_t interval_ms) { this->hardware_settings_interval_ms_ = interval_ms; }
@@ -142,6 +161,15 @@ namespace esphome {
         HVACOptionSwitch* air_purifier_switch_ = nullptr;
         HVACOptionSwitch* night_mode_switch_ = nullptr;
         HVACOptionSwitch* circulator_switch_ = nullptr;
+        HVACOptionSwitch* energy_saving_switch_ = nullptr;
+        HVACOptionSwitch* thermal_image_switch_ = nullptr;
+        HVACOptionSwitch* long_airflow_switch_ = nullptr;
+        HVACOptionSwitch* stopped_sensing_switch_ = nullptr;
+        FunctionsNumber* target_humidity_number_ = nullptr;
+        FunctionsButton* buzzer_button_ = nullptr;
+        text_sensor::TextSensor* auto_direction_sensor_ = nullptr;
+        text_sensor::TextSensor* profile_sensor_ = nullptr;
+        const char* auto_direction_state_ = nullptr;
         std::vector<HardwareSettingSelect*> hardware_settings_;
         uint32_t hardware_settings_interval_ms_{ 86400000 };  // Default 24h
 
@@ -187,6 +215,12 @@ namespace esphome {
         bool is_air_purifier();
         bool is_night_mode();
         bool is_circulator();
+
+        // True when no profile was captured (so the capability is unknown and
+        // the control stays usable), or when the profile advertises the feature.
+        bool profileAllows(bool (ProfileCapabilities::* capability)() const) const {
+            return !this->profile_capabilities_.valid || (this->profile_capabilities_.*capability)();
+        }
 
         // checks if the field has changed
 
@@ -235,6 +269,12 @@ namespace esphome {
         void sendRemoteTemperaturePacket();  // Send packet only, without resetting watchdog
         void sendWantedRunStates();
         float getDeadbandAdjustedTemperature(float remoteTemperature);
+        // Run states span three different SET frames; each helper sends at most
+        // one frame and reports whether it wrote anything.
+        bool sendRunStateFrame();
+        bool sendVaneExtensionFrame();
+        bool sendThermalImageFrame();
+        bool hasPendingRunStates() const;
 
         void set_remote_temp_timeout(uint32_t timeout);
 
@@ -363,6 +403,7 @@ namespace esphome {
         void getRoomTemperatureFromResponsePacket();
         void getOperatingAndCompressorFreqFromResponsePacket();
         void getHVACOptionsFromResponsePacket();
+        void decodeProfileFrame();
 
         void updateSuccess();
         void processCommand();
@@ -380,6 +421,7 @@ namespace esphome {
         bool getAirPurifierRunState();
         bool getNightModeRunState();
         bool getCirculatorRunState();
+        void publishRunStateSwitch(HVACOptionSwitch* target, int8_t& current, int8_t received, const char* label);
 
         void setModeSetting(const char* setting);
         void setPowerSetting(const char* setting);
@@ -503,6 +545,7 @@ namespace esphome {
         // All fields are default-initialized via heatpumpStatus struct defaults (NAN, false, etc.)
         heatpumpStatus currentStatus{};
         heatpumpFunctions functions;
+        ProfileCapabilities profile_capabilities_{};
 
         bool use_temperature_encoding_b_ = false;
         bool wideVaneAdj;

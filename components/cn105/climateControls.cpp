@@ -707,9 +707,9 @@ void CN105Climate::setVaneSetting(const char* setting) {
 void CN105Climate::setLeftVaneSetting(const char* setting) {
     int index = lookupByteMapIndex(LEFT_VANE_MAP, 7, setting);
     if (index > -1) {
-        wantedSettings.left_vane = LEFT_VANE_MAP[index];
+        wantedRunStates.left_vane = LEFT_VANE_MAP[index];
     } else {
-        wantedSettings.left_vane = LEFT_VANE_MAP[0];
+        wantedRunStates.left_vane = LEFT_VANE_MAP[0];
     }
 }
 

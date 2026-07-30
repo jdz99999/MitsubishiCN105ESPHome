@@ -325,6 +325,20 @@ void CN105Climate::set_stopped_sensing_switch(HVACOptionSwitch* Switch) {
 void CN105Climate::set_target_humidity_number(FunctionsNumber* Number) {
     this->target_humidity_number_ = Number;
     this->target_humidity_number_->setCallbackFunction([this](float value) {
+        // Reject here rather than in the packet builder, so the entity never
+        // reports a value the heat pump was never sent. The official client only
+        // writes this field while the unit is in DRY mode.
+        const char* mode = this->currentSettings.mode;
+        if (mode == nullptr || strcmp(mode, "DRY") != 0) {
+            ESP_LOGW(TAG, "Target humidity is a DRY-mode setting; ignoring request (current mode %s)",
+                mode ? mode : "unknown");
+            if (this->currentRunStates.target_humidity > -1) {
+                this->target_humidity_number_->publish_state(
+                    static_cast<float>(this->currentRunStates.target_humidity));
+            }
+            return;
+        }
+
         const uint8_t requested = cn105_protocol::clamp_target_humidity(static_cast<int>(value));
         ESP_LOGD("EVT", "target_humidity.control() -> requested %.0f%% (sending %u%%)", value,
             static_cast<unsigned>(requested));

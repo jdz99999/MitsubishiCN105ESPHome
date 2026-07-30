@@ -937,6 +937,14 @@ The left vane is written through a separate SET frame (subtype `0x33`), not thro
 
 Readback for these values is capture-confirmed. Write positions match the official Mitsubishi encoders, but validate them on the target hardware before relying on them in unattended automation.
 
+### Air Clean on JP R-Series Units
+
+On the JP R-series (verified on MSZ-R2225), the remote's air-clean button is **operating mode `0x07`**, which this component exposes as the standard `FAN_ONLY` climate mode. Selecting `FAN_ONLY` produces a settings readback byte-identical to pressing the button, including the fan stage. There is no separate switch to configure.
+
+These units have no separate fan-only button on the remote — its modes are cool, heat, dry and air clean — so `FAN_ONLY` and air clean are the same thing there.
+
+Do **not** use `air_purifier_switch` for this: R-series units do not answer subtype `0x42` at all, so that switch can never read back a state on them.
+
 ### JP Comfort and Sensing Controls
 
 These optional entities implement fields that the official Mitsubishi clients encode. Each one refuses to send a command if the unit's capability profile says the model does not have the feature; when no profile is received, the control stays usable.

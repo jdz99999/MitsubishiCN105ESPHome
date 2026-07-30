@@ -636,9 +636,19 @@ bool CN105Climate::sendRunStateFrame() {
         request.energy_saving = this->wantedRunStates.energy_saving != 0;
     }
     if (this->wantedRunStates.target_humidity > -1) {
-        const uint8_t humidity = cn105_protocol::clamp_target_humidity(this->wantedRunStates.target_humidity);
-        ESP_LOGI(TAG, "target humidity -> %u%%", static_cast<unsigned>(humidity));
-        request.target_humidity = humidity;
+        // The dehumidification target is a DRY-mode setting: the official client
+        // only ever includes this field while the unit is in mode 0x02, and its
+        // UI for it is the 除湿 screen. Sending it in another mode is untested,
+        // so skip it rather than guess.
+        const char* mode = this->getModeSetting();
+        if (mode != nullptr && strcmp(mode, "DRY") == 0) {
+            const uint8_t humidity = cn105_protocol::clamp_target_humidity(this->wantedRunStates.target_humidity);
+            ESP_LOGI(TAG, "target humidity -> %u%%", static_cast<unsigned>(humidity));
+            request.target_humidity = humidity;
+        } else {
+            ESP_LOGW(TAG, "Ignoring target humidity: only settable in DRY mode (current mode %s)",
+                mode ? mode : "unknown");
+        }
     }
     if (this->wantedRunStates.buzzer) {
         ESP_LOGI(TAG, "buzzer -> beep");

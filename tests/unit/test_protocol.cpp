@@ -541,10 +541,15 @@ TEST(ProtocolRunState, EmptyRequestWritesNothing) {
 }
 
 TEST(ProtocolRunState, ClampsHumidityToRemoteRange) {
+    // The official client floors to the 10 % step, then clamps to 40..70.
     EXPECT_EQ(clamp_target_humidity(10), 40);
-    EXPECT_EQ(clamp_target_humidity(45), 50);
+    EXPECT_EQ(clamp_target_humidity(45), 40);
+    EXPECT_EQ(clamp_target_humidity(49), 40);
+    EXPECT_EQ(clamp_target_humidity(50), 50);
     EXPECT_EQ(clamp_target_humidity(60), 60);
+    EXPECT_EQ(clamp_target_humidity(70), 70);
     EXPECT_EQ(clamp_target_humidity(99), 70);
+    EXPECT_EQ(clamp_target_humidity(-5), 40);
 }
 
 TEST(ProtocolThermalImage, UsesItsOwnControlBit) {

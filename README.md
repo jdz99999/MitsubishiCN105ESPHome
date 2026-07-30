@@ -975,7 +975,7 @@ climate:
 ```
 
 - `energy_saving_switch` is the persistent 節電 energy-saving mode. It is not Peak Cut.
-- `target_humidity_number` is the 除湿調節 dehumidification target, 40-70 % in 10 % steps. Units with a Weak/Standard/Strong remote display map those to 60/50/40.
+- `target_humidity_number` is the 除湿調節 dehumidification target, 40-70 % floored to 10 % steps. Units with a Weak/Standard/Strong remote display map those to 60/50/40. **It only applies in DRY mode** — that is the only mode in which the official app sends this field, so a change requested in any other mode is refused with a warning.
 - `long_airflow_switch` is ロング気流 long-throw airflow, a fan extension. It is not High Power.
 - `stopped_sensing_switch` enables sensing while the unit is stopped (the thermal/vital sensor path).
 - `thermal_image_switch` enables the Move Eye thermal-image feature. Only the on/off state travels over CN105; the image itself is retrieved by Mitsubishi's app from their cloud and is not available to this component.

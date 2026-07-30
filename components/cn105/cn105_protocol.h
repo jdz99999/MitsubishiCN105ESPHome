@@ -253,12 +253,16 @@ inline uint8_t select_room_temperature_byte(uint8_t legacy, uint8_t effective, b
 /// Persistent energy-saving flag written in payload 5.
 inline uint8_t encode_energy_saving(bool enabled) { return enabled ? 0x0a : 0x00; }
 
-/// Clamp a dehumidification target to the 40..70 % range the official UI offers,
-/// snapped to the 10 % steps the remote uses.
+/// Clamp a dehumidification target the way the official client does: floor to
+/// the 10 % step first, then clamp into 40..70 %. Its UI labels 60/50/40 as
+/// 弱 / 標準 / 強 on models that do not display a percentage.
+/// Note this floors rather than rounds, so 45 % becomes 40 %, not 50 %.
 inline uint8_t clamp_target_humidity(int percent) {
+    if (percent < 0) percent = 0;
+    percent = (percent / 10) * 10;
     if (percent < 40) percent = 40;
     if (percent > 70) percent = 70;
-    return static_cast<uint8_t>(((percent + 5) / 10) * 10);
+    return static_cast<uint8_t>(percent);
 }
 
 struct RunStateRequest {

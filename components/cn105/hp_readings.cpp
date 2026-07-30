@@ -308,8 +308,11 @@ void CN105Climate::getSettingsFromResponsePacket() {
 
     // --- TARGET HUMIDITY (payload 12 of the 0x02 settings packet) ---
     // Both official Mitsubishi clients read this byte as the dehumidification
-    // target in percent (40..70 on the models that expose the control). It reads
-    // 0x00 on units without the feature.
+    // target in percent, but only treat it as the target while the unit is in
+    // DRY mode; in other modes it holds a mode-dependent value. The diagnostic
+    // sensor still publishes it unconditionally (existing behaviour), while the
+    // writable number only follows it in DRY mode so it does not jump around.
+    const bool inDryMode = receivedSettings.mode != nullptr && strcmp(receivedSettings.mode, "DRY") == 0;
     uint8_t raw_humidity = data[12];
     if (raw_humidity > 0 && raw_humidity <= 100) {
         receivedRunStates.target_humidity = static_cast<int8_t>(raw_humidity);
@@ -320,11 +323,13 @@ void CN105Climate::getSettingsFromResponsePacket() {
                 this->target_humidity_sensor_->publish_state(humidity_pct);
             }
         }
-        if (this->target_humidity_number_ != nullptr && this->wantedRunStates.target_humidity < 0 &&
-            this->currentRunStates.target_humidity != receivedRunStates.target_humidity) {
-            this->target_humidity_number_->publish_state(static_cast<float>(raw_humidity));
+        if (inDryMode) {
+            if (this->target_humidity_number_ != nullptr && this->wantedRunStates.target_humidity < 0 &&
+                this->currentRunStates.target_humidity != receivedRunStates.target_humidity) {
+                this->target_humidity_number_->publish_state(static_cast<float>(raw_humidity));
+            }
+            this->currentRunStates.target_humidity = receivedRunStates.target_humidity;
         }
-        this->currentRunStates.target_humidity = receivedRunStates.target_humidity;
     } else if (raw_humidity != 0) {
         ESP_LOGD("Decoder", "[Target Humidity byte out of range: 0x%02X]", raw_humidity);
     }

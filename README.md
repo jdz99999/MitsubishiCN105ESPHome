@@ -1014,10 +1014,13 @@ climate:
 ### Supplying the model capability profile
 
 Some behaviour depends on capability tables the indoor unit publishes as `PROFILECODE`
-frames. **JP units do not serve those over CN105** — verified on both an MSZ-R2225 and an
-MSZ-ZW2525, which ignore the extended `0x5B` handshake and let GETs for `0xC9`, `0xCD`,
-`0xD0` and `0xD1` time out. The tables are only reachable from the Wi-Fi adapter. If you
-have captured them, supply them here:
+frames. On JP units there is currently **no known way to request them over CN105**: an
+extended `0x5B` handshake gets no reply, and GETs for `0xC9`, `0xCD`, `0xD0` and `0xD1`
+time out on both an MSZ-R2225 and an MSZ-ZW2525. Note those probes use command `0x42`
+while the profile frames use `0x7B`, so this shows the request form is wrong rather than
+the data being absent — the Wi-Fi adapter plugs into the same port and does obtain it. They
+are readable from the adapter's HTTP endpoint. If you have captured them, supply them
+here:
 
 ```yaml
 model_profile:
@@ -1042,7 +1045,8 @@ arrives. Two things this corrects on JP ZW units:
   `DIRECT` under A.I. Auto.
 
 Do **not** set `installer_mode: true` on JP units to try to obtain the profile. Neither
-family answers the extended handshake, and it costs a 10-second delay on every boot.
+family answers the extended handshake as this component sends it, and it costs a 10-second
+delay on every boot.
 
 ### Raw Protocol Probe
 

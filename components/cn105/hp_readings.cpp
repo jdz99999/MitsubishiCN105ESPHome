@@ -634,13 +634,27 @@ void CN105Climate::decodeProfileFrame() {
         break;
     }
 
-    if (this->profile_sensor_ != nullptr) {
-        char summary[96];
-        snprintf(summary, sizeof(summary), "%s C9=%02X CD=%02X%02X D0=%02X",
-            caps.model[0] != '\0' ? caps.model : "unknown",
-            caps.c9_6, caps.cd_7, caps.cd_8, caps.d0_2);
-        this->profile_sensor_->publish_state(summary);
+    this->publishProfileSummary();
+}
+
+/**
+ * Publishes the capability profile, whether it arrived as a PROFILECODE frame or was
+ * supplied from YAML. JP units never send the frames, so without this a configured
+ * profile would show as unavailable.
+ */
+void CN105Climate::publishProfileSummary() {
+    if (this->profile_sensor_ == nullptr) {
+        return;
     }
+    const ProfileCapabilities& caps = this->profile_capabilities_;
+    if (!caps.valid) {
+        return;
+    }
+    char summary[96];
+    snprintf(summary, sizeof(summary), "%s C9=%02X CD=%02X%02X D0=%02X",
+        caps.model[0] != '\0' ? caps.model : "configured",
+        caps.c9_6, caps.cd_7, caps.cd_8, caps.d0_2);
+    this->profile_sensor_->publish_state(summary);
 }
 
 void CN105Climate::terminateCycle() {

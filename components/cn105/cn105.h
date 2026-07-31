@@ -113,6 +113,10 @@ namespace esphome {
         void set_long_airflow_switch(HVACOptionSwitch* long_airflow_switch);
         void set_stopped_sensing_switch(HVACOptionSwitch* stopped_sensing_switch);
         void set_target_humidity_number(FunctionsNumber* target_humidity_number);
+        // ZW-family units expose humidity as a real percentage target their remote
+        // accepts in any mode. R-family units only have it as the 3-step dry
+        // strength. Set true for the former; the default keeps DRY-only.
+        void set_humidity_settable_in_all_modes(bool value) { this->humidity_all_modes_ = value; }
         void set_buzzer_button(FunctionsButton* buzzer_button);
         void set_auto_direction_sensor(esphome::text_sensor::TextSensor* auto_direction_sensor);
         void set_profile_sensor(esphome::text_sensor::TextSensor* profile_sensor);
@@ -236,7 +240,10 @@ namespace esphome {
         // distinguishes them: percent UI means a genuine humidity control.
         // Without a profile we stay conservative and allow it in DRY only.
         bool humidityIsModeIndependent() const {
-            return this->profile_capabilities_.humidity_shown_as_percent();
+            // An explicit YAML flag wins; otherwise fall back to the CD profile,
+            // which reports a percentage UI on models with a real humidity control.
+            return this->humidity_all_modes_ ||
+                this->profile_capabilities_.humidity_shown_as_percent();
         }
 
         // True when no profile was captured (so the capability is unknown and
@@ -628,6 +635,7 @@ namespace esphome {
             float target_low;
             float target_high;
         } __attribute__((packed));
+        bool humidity_all_modes_ = false;
         bool restore_setpoints_ = false;
         esphome::ESPPreferenceObject setpoint_pref_;
         bool setpoint_pref_ready_ = false;

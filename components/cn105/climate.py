@@ -122,6 +122,7 @@ CONF_SPECIAL_STOPPING_SENSOR = "special_stopping_sensor"
 CONF_MULTI_STANDBY_SENSOR = "multi_standby_sensor"
 # Capability tables captured from the Wi-Fi adapter. Neither JP family serves
 # PROFILECODE frames over CN105, so they must be supplied here to be used.
+CONF_HUMIDITY_ALL_MODES = "settable_in_all_modes"
 CONF_MODEL_PROFILE = "model_profile"
 CONF_PROFILE_C9_6 = "c9_6"
 CONF_PROFILE_C9_9 = "c9_9"
@@ -408,6 +409,10 @@ HP_UP_TIME_CONNECTION_SENSOR_SCHEMA = sensor.sensor_schema(
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
 ).extend(cv.polling_component_schema("60s"))
 
+TARGET_HUMIDITY_NUMBER_SCHEMA = FUNCTIONS_NUMBER_SCHEMA.extend(
+    {cv.Optional(CONF_HUMIDITY_ALL_MODES, default=False): cv.boolean}
+)
+
 MODEL_PROFILE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PROFILE_C9_6): cv.hex_uint8_t,
@@ -530,7 +535,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_THERMAL_IMAGE_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
             cv.Optional(CONF_LONG_AIRFLOW_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
             cv.Optional(CONF_STOPPED_SENSING_SWITCH): HVAC_OPTION_SWITCH_SCHEMA,
-            cv.Optional(CONF_TARGET_HUMIDITY_NUMBER): FUNCTIONS_NUMBER_SCHEMA,
+            cv.Optional(
+                CONF_TARGET_HUMIDITY_NUMBER
+            ): TARGET_HUMIDITY_NUMBER_SCHEMA,
             cv.Optional(CONF_BUZZER_BUTTON): FUNCTIONS_BUTTON_SCHEMA,
             cv.Optional(CONF_AUTO_DIRECTION_SENSOR): AUTO_DIRECTION_SENSOR_SCHEMA,
             cv.Optional(CONF_PROFILE_SENSOR): PROFILE_SENSOR_SCHEMA,
@@ -814,6 +821,11 @@ def to_code(config):
             config[CONF_TARGET_HUMIDITY_NUMBER], min_value=40.0, max_value=70.0, step=10.0
         )
         cg.add(var.set_target_humidity_number(number_var))
+        cg.add(
+            var.set_humidity_settable_in_all_modes(
+                config[CONF_TARGET_HUMIDITY_NUMBER][CONF_HUMIDITY_ALL_MODES]
+            )
+        )
 
     if CONF_BUZZER_BUTTON in config:
         button_var = yield button.new_button(config[CONF_BUZZER_BUTTON])

@@ -31,6 +31,20 @@ void CN105Climate::set_vertical_vane_select(
         this->wantedSettings.hasChanged = true;
         this->wantedSettings.hasBeenSent = false;
         this->wantedSettings.lastChange = CUSTOM_MILLIS;
+
+        // On split-vane units the subtype 0x01 up/down field is the legacy single-vane
+        // control and moves both flaps, so a right-vane change drags the left one with
+        // it. The official app avoids that by sending the subtype 0x33 left-vane frame
+        // in the same batch, re-asserting the left position. Do the same: queue the
+        // current left vane so it is restored right after the 0x01 write.
+        if (this->left_vane_select_ != nullptr && this->currentSettings.left_vane != nullptr) {
+            ESP_LOGD("EVT", "re-asserting left vane %s after a right-vane change",
+                this->currentSettings.left_vane);
+            this->wantedRunStates.left_vane = this->currentSettings.left_vane;
+            this->wantedRunStates.hasChanged = true;
+            this->wantedRunStates.hasBeenSent = false;
+            this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        }
         });
 
 }

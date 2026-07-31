@@ -983,13 +983,71 @@ climate:
 ```
 
 - `energy_saving_switch` is the persistent 節電 energy-saving mode. It is not Peak Cut.
-- `target_humidity_number` is the 除湿調節 dehumidification target, 40-70 % floored to 10 % steps. Units with a Weak/Standard/Strong remote display map those to 60/50/40. **It only applies in DRY mode** — that is the only mode in which the official app sends this field, so a change requested in any other mode is refused with a warning.
+- `target_humidity_number` is the dehumidification target, 40-70 % floored to 10 % steps. Units with a Weak/Standard/Strong remote display map those to 60/50/40.
+
+  The same byte means different things across families, so this control has a model flag:
+
+  ```yaml
+  target_humidity_number:
+    name: "Dehumidification Target"
+    settable_in_all_modes: true   # JP ZW family only
+  ```
+
+  On the **ZW family** it is a real percentage target and the unit's own remote accepts it
+  while cooling or heating — set the flag. On the **R family** it is the 3-step dry
+  strength and only means anything in DRY, so leave the flag out; requests in other modes
+  are then refused with a warning rather than silently ignored. When the flag is absent the
+  `CD` capability profile is consulted, and failing that the conservative DRY-only rule
+  applies. Verified on an MSZ-ZW2525: 50 % accepted in DRY, and 40 % accepted in COOL once
+  the flag is set.
 - `long_airflow_switch` is ロング気流 long-throw airflow, a fan extension. It is not High Power.
 - `stopped_sensing_switch` enables sensing while the unit is stopped (the thermal/vital sensor path).
 - `thermal_image_switch` enables the Move Eye thermal-image feature. Only the on/off state travels over CN105; the image itself is retrieved by Mitsubishi's app from their cloud and is not available to this component.
-- `buzzer_button` triggers a single confirmation beep.
+- `buzzer_button` triggers a single confirmation beep. Handy as a quick end-to-end check
+  that the write path reaches the unit — verified audibly on both an MSZ-R2225 and an
+  MSZ-ZW2525.
+- `special_stopping_sensor` reports that the unit is doing real work **after being switched
+  off**: the internal-clean / mould-guard cycle, the filter self-cleaning mechanism, or the
+  periodic fan of the temperature watch. On JP models filter self-cleaning is enabled by
+  default, so this happens regularly with nothing else to indicate it. Confirmed on an
+  MSZ-ZW2525, where one press of stop enters that state and a second press leaves it.
+- `multi_standby_sensor` reports the multi-split standby state.
+- `stopped_sensing_switch` is **not currently verified**. Writing it produced no readback
+  change on the unit tested, while `long_airflow_switch` in the same frame worked, so the
+  frame is accepted and this field is not. Left in the component but not recommended.
 
-Room temperature is selected from the unit's capability profile: models that advertise an effective room temperature report it in a separate byte, and this component uses that byte when the profile sets the flag.
+### Supplying the model capability profile
+
+Some behaviour depends on capability tables the indoor unit publishes as `PROFILECODE`
+frames. **JP units do not serve those over CN105** — verified on both an MSZ-R2225 and an
+MSZ-ZW2525, which ignore the extended `0x5B` handshake and let GETs for `0xC9`, `0xCD`,
+`0xD0` and `0xD1` time out. The tables are only reachable from the Wi-Fi adapter. If you
+have captured them, supply them here:
+
+```yaml
+model_profile:
+  c9_6: 0xDF
+  c9_9: 0x35
+  cd_7: 0x1F
+  cd_8: 0xD1
+  cd_13: 0x40
+  d0_1: 0x1C
+  d0_2: 0xEF
+```
+
+Only the tables you actually provide are treated as known, so a partial profile never
+implies a capability it says nothing about, and a real `PROFILECODE` frame still wins if one
+arrives. Two things this corrects on JP ZW units:
+
+- **Room temperature.** When `CD[7] & 0x10` is set the unit regulates on an effective room
+  temperature carried in a different byte. Without the profile the component reports the
+  legacy byte, which was observed differing by half a degree on a live MSZ-ZW2525.
+- **Airflow control.** With the profile the sensor-directed airflow state is read directly;
+  without it a legacy heuristic is used which misreports `NORMAL` while the unit is in
+  `DIRECT` under A.I. Auto.
+
+Do **not** set `installer_mode: true` on JP units to try to obtain the profile. Neither
+family answers the extended handshake, and it costs a 10-second delay on every boot.
 
 ### Raw Protocol Probe
 

@@ -148,6 +148,29 @@ void CN105Climate::getPowerFromResponsePacket() {
             data[7] == 0x01 ? 1 : 0, "thermal image");
     }
 
+    // Payload 5 bit 0x04 is the official client's "special stopping mode": the
+    // unit is doing real work after being switched off. On JP models the manuals
+    // describe three such behaviours — the internal-clean / mould-guard cycle,
+    // the filter self-cleaning mechanism, and the periodic fan of the high/low
+    // temperature watch, which can also restart cooling or heating by itself.
+    if (this->special_stopping_sensor_ != nullptr) {
+        const bool special_stopping = cn105_protocol::decode_special_stopping(data[5]);
+        if (!this->special_stopping_sensor_->has_state() ||
+            this->special_stopping_sensor_->state != special_stopping) {
+            ESP_LOGD("Decoder", "[Special stopping : %s] raw=0x%02X", special_stopping ? "YES" : "NO", data[5]);
+            this->special_stopping_sensor_->publish_state(special_stopping);
+        }
+    }
+
+    if (this->multi_standby_sensor_ != nullptr) {
+        const bool multi_standby = cn105_protocol::decode_multi_standby(data[3]);
+        if (!this->multi_standby_sensor_->has_state() ||
+            this->multi_standby_sensor_->state != multi_standby) {
+            ESP_LOGD("Decoder", "[Multi standby : %s] raw=0x%02X", multi_standby ? "YES" : "NO", data[3]);
+            this->multi_standby_sensor_->publish_state(multi_standby);
+        }
+    }
+
     //this->heatpumpUpdate(receivedSettings);
     if (this->stage_sensor_ != nullptr) {
         if (!this->currentSettings.stage || strcmp(receivedSettings.stage, this->currentSettings.stage) != 0) {

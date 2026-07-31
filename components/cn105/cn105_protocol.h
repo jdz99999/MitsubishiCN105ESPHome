@@ -137,6 +137,21 @@ inline ModeDecode decode_mode_byte(uint8_t raw) {
     return result;
 }
 
+/// True when the unit is running something while nominally stopped. The official
+/// client calls this `isStoppingOperationMode`. On JP models it covers the
+/// internal-clean / mould-guard cycle, the filter self-cleaning mechanism, and
+/// the periodic fan of the high/low temperature watch — all of which the manuals
+/// describe as real operation after the unit has been switched off.
+inline bool decode_special_stopping(uint8_t status_payload_5) {
+    return (status_payload_5 & 0x04) != 0;
+}
+
+/// True when the indoor unit reports the multi-standby state used by multi-split
+/// installations, from payload 3 of a subtype 0x09 response.
+inline bool decode_multi_standby(uint8_t status_payload_3) {
+    return (status_payload_3 & 0x08) != 0;
+}
+
 /// Decode the auto-direction reported in payload 5 of a subtype 0x09 response.
 /// The official client tests two independent bit pairs, cooling first:
 /// bits 1..0 == 0b11 or bits 5..4 == 0b10 → cooling (e.g. 0x28),

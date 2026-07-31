@@ -605,3 +605,33 @@ TEST(ProtocolLookupIndexOpt, NullStringReturnsNullopt) {
     auto result = lookup_index_opt(MODE_MAP, 5, nullptr);
     EXPECT_FALSE(result.has_value());
 }
+
+// ════════════════════════════════════════════════════════════════
+// Subtype 0x09 status flags
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolStatusFlags, SpecialStoppingIsBit0x04) {
+    EXPECT_TRUE(decode_special_stopping(0x04));
+    EXPECT_TRUE(decode_special_stopping(0x2C));   // set alongside auto-cooling bits
+    EXPECT_FALSE(decode_special_stopping(0x00));
+    // Captured on a live MSZ-R2225: auto-direction values must not read as stopping.
+    EXPECT_FALSE(decode_special_stopping(0x18));
+    EXPECT_FALSE(decode_special_stopping(0x28));
+}
+
+TEST(ProtocolStatusFlags, MultiStandbyIsBit0x08) {
+    EXPECT_TRUE(decode_multi_standby(0x08));
+    EXPECT_FALSE(decode_multi_standby(0x00));
+    // Sub-mode values that share payload 3 must not read as multi-standby.
+    EXPECT_FALSE(decode_multi_standby(0x01));
+    EXPECT_FALSE(decode_multi_standby(0x02));
+    EXPECT_FALSE(decode_multi_standby(0x04));
+}
+
+TEST(ProtocolStatusFlags, StoppingAndDirectionAreIndependentBits) {
+    // Payload 5 carries both; decoding one must not disturb the other.
+    EXPECT_EQ(decode_auto_direction(0x2C), AutoDirection::COOLING);
+    EXPECT_TRUE(decode_special_stopping(0x2C));
+    EXPECT_EQ(decode_auto_direction(0x1C), AutoDirection::HEATING);
+    EXPECT_TRUE(decode_special_stopping(0x1C));
+}

@@ -17,6 +17,7 @@
 #include "jp_ai_auto_sensor.h"
 #include "auto_direction_sensor.h"
 #include "profile_sensor.h"
+#include "status_flag_sensor.h"
 #include "isee_sensor.h"
 #include "stage_sensor.h"
 #include "functions_sensor.h"
@@ -107,6 +108,8 @@ namespace esphome {
         void set_buzzer_button(FunctionsButton* buzzer_button);
         void set_auto_direction_sensor(esphome::text_sensor::TextSensor* auto_direction_sensor);
         void set_profile_sensor(esphome::text_sensor::TextSensor* profile_sensor);
+        void set_special_stopping_sensor(esphome::binary_sensor::BinarySensor* sensor);
+        void set_multi_standby_sensor(esphome::binary_sensor::BinarySensor* sensor);
 
         void add_hardware_setting(HardwareSettingSelect* setting);
         void set_hardware_settings_interval(uint32_t interval_ms) { this->hardware_settings_interval_ms_ = interval_ms; }
@@ -169,6 +172,8 @@ namespace esphome {
         FunctionsButton* buzzer_button_ = nullptr;
         text_sensor::TextSensor* auto_direction_sensor_ = nullptr;
         text_sensor::TextSensor* profile_sensor_ = nullptr;
+        binary_sensor::BinarySensor* special_stopping_sensor_ = nullptr;
+        binary_sensor::BinarySensor* multi_standby_sensor_ = nullptr;
         const char* auto_direction_state_ = nullptr;
         std::vector<HardwareSettingSelect*> hardware_settings_;
         uint32_t hardware_settings_interval_ms_{ 86400000 };  // Default 24h

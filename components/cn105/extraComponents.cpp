@@ -370,6 +370,14 @@ void CN105Climate::set_profile_sensor(esphome::text_sensor::TextSensor* profile_
     this->profile_sensor_ = profile_sensor;
 }
 
+void CN105Climate::set_special_stopping_sensor(esphome::binary_sensor::BinarySensor* sensor) {
+    this->special_stopping_sensor_ = sensor;
+}
+
+void CN105Climate::set_multi_standby_sensor(esphome::binary_sensor::BinarySensor* sensor) {
+    this->multi_standby_sensor_ = sensor;
+}
+
 void CN105Climate::set_sub_mode_sensor(esphome::text_sensor::TextSensor* Sub_mode_sensor) {
     this->Sub_mode_sensor_ = Sub_mode_sensor;
 }

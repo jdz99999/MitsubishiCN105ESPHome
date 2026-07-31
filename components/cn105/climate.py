@@ -118,6 +118,8 @@ CONF_TARGET_HUMIDITY_NUMBER = "target_humidity_number"
 CONF_BUZZER_BUTTON = "buzzer_button"
 CONF_AUTO_DIRECTION_SENSOR = "auto_direction_sensor"
 CONF_PROFILE_SENSOR = "profile_sensor"
+CONF_SPECIAL_STOPPING_SENSOR = "special_stopping_sensor"
+CONF_MULTI_STANDBY_SENSOR = "multi_standby_sensor"
 CONF_HARDWARE_SETTINGS = "hardware_settings"
 CONF_CODE = "code"
 CONF_OPTIONS = "options"
@@ -198,6 +200,12 @@ AutoDirectionSensor = cg.global_ns.class_(
 )
 ProfileSensor = cg.global_ns.class_(
     "ProfileSensor", text_sensor.TextSensor, cg.Component
+)
+SpecialStoppingSensor = cg.global_ns.class_(
+    "SpecialStoppingSensor", binary_sensor.BinarySensor, cg.Component
+)
+MultiStandbySensor = cg.global_ns.class_(
+    "MultiStandbySensor", binary_sensor.BinarySensor, cg.Component
 )
 RemoteTempSourceInfo = cg.global_ns.class_(
     "RemoteTempSourceInfo", text_sensor.TextSensor, cg.Component
@@ -341,6 +349,14 @@ AUTO_DIRECTION_SENSOR_SCHEMA = text_sensor.text_sensor_schema(AutoDirectionSenso
 PROFILE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(ProfileSensor).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(ProfileSensor)}
 )
+
+SPECIAL_STOPPING_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema(
+    SpecialStoppingSensor
+).extend({cv.GenerateID(CONF_ID): cv.declare_id(SpecialStoppingSensor)})
+
+MULTI_STANDBY_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema(
+    MultiStandbySensor
+).extend({cv.GenerateID(CONF_ID): cv.declare_id(MultiStandbySensor)})
 
 REMOTE_TEMP_SOURCE_SCHEMA = cv.Schema(
     {
@@ -496,6 +512,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BUZZER_BUTTON): FUNCTIONS_BUTTON_SCHEMA,
             cv.Optional(CONF_AUTO_DIRECTION_SENSOR): AUTO_DIRECTION_SENSOR_SCHEMA,
             cv.Optional(CONF_PROFILE_SENSOR): PROFILE_SENSOR_SCHEMA,
+            cv.Optional(
+                CONF_SPECIAL_STOPPING_SENSOR
+            ): SPECIAL_STOPPING_SENSOR_SCHEMA,
+            cv.Optional(CONF_MULTI_STANDBY_SENSOR): MULTI_STANDBY_SENSOR_SCHEMA,
             cv.Optional(CONF_HARDWARE_SETTINGS): HARDWARE_SETTING_SCHEMA,
             cv.Optional(CONF_RAW_PROBE): RAW_PROBE_SCHEMA,
             cv.Optional(
@@ -785,6 +805,18 @@ def to_code(config):
     if CONF_PROFILE_SENSOR in config:
         tsensor_var = yield text_sensor.new_text_sensor(config[CONF_PROFILE_SENSOR])
         cg.add(var.set_profile_sensor(tsensor_var))
+
+    if CONF_SPECIAL_STOPPING_SENSOR in config:
+        bsensor_var = yield binary_sensor.new_binary_sensor(
+            config[CONF_SPECIAL_STOPPING_SENSOR]
+        )
+        cg.add(var.set_special_stopping_sensor(bsensor_var))
+
+    if CONF_MULTI_STANDBY_SENSOR in config:
+        bsensor_var = yield binary_sensor.new_binary_sensor(
+            config[CONF_MULTI_STANDBY_SENSOR]
+        )
+        cg.add(var.set_multi_standby_sensor(bsensor_var))
 
     # Set Fahrenheit compatibility mode (cast int to FahrenheitMode enum)
     # The enum validator returns the integer value from FAHRENHEIT_MODES dict

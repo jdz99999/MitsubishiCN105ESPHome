@@ -386,6 +386,9 @@ void CN105Climate::set_auto_direction_sensor(esphome::text_sensor::TextSensor* a
 
 void CN105Climate::set_profile_sensor(esphome::text_sensor::TextSensor* profile_sensor) {
     this->profile_sensor_ = profile_sensor;
+    // A YAML-supplied profile is set before this runs, so publish it now. Otherwise
+    // a configured profile looks absent, because JP units never send the frames.
+    this->publishProfileSummary();
 }
 
 void CN105Climate::set_profile_c9(uint8_t payload_6, uint8_t payload_9) {
@@ -415,8 +418,8 @@ void CN105Climate::set_profile_d0(uint8_t payload_1, uint8_t payload_2) {
     ESP_LOGI("Profile", "D0 supplied from YAML: [1]=0x%02X [2]=0x%02X", payload_1, payload_2);
 }
 
-void CN105Climate::set_special_stopping_sensor(esphome::binary_sensor::BinarySensor* sensor) {
-    this->special_stopping_sensor_ = sensor;
+void CN105Climate::set_unit_activity_sensor(esphome::text_sensor::TextSensor* sensor) {
+    this->unit_activity_sensor_ = sensor;
 }
 
 void CN105Climate::set_multi_standby_sensor(esphome::binary_sensor::BinarySensor* sensor) {

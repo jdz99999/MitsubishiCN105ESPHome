@@ -1001,15 +1001,50 @@ climate:
 - `buzzer_button` triggers a single confirmation beep. Handy as a quick end-to-end check
   that the write path reaches the unit — verified audibly on both an MSZ-R2225 and an
   MSZ-ZW2525.
-- `special_stopping_sensor` reports that the unit is doing real work **after being switched
-  off**: the internal-clean / mould-guard cycle, the filter self-cleaning mechanism, or the
-  periodic fan of the temperature watch. On JP models filter self-cleaning is enabled by
-  default, so this happens regularly with nothing else to indicate it. Confirmed on an
-  MSZ-ZW2525, where one press of stop enters that state and a second press leaves it.
-- `multi_standby_sensor` reports the multi-split standby state.
+- `unit_activity_sensor` is a plain-language status, and the most useful addition here for
+  day-to-day use. It reports one of three values:
+
+  | State | Meaning |
+  |---|---|
+  | `Running` | Powered on. The climate entity already describes what it is doing |
+  | `Cleaning / protection` | **Switched off, but still working** |
+  | `Idle` | Off and genuinely doing nothing |
+
+  The middle state is the point. JP units keep running after you switch them off: the
+  internal-clean and mould-guard cycle after cooling or drying, the filter self-cleaning
+  mechanism, and the periodic fan of the high or low temperature watch. Filter
+  self-cleaning is enabled from the factory, so this happens regularly on every unit with
+  nothing else to indicate it. Home Assistant otherwise just shows "off".
+
+  A single protocol bit cannot say which of the three is running, so one label covers all
+  of them. Confirmed on an MSZ-ZW2525: one press of stop enters the state, a second press
+  leaves it.
+
+- `multi_standby_sensor` reports the multi-split standby state, where one indoor unit is
+  parked because another on the same outdoor unit wants the opposite mode. It stays false
+  on single-split installations, so most people do not need it.
 - `stopped_sensing_switch` is **not currently verified**. Writing it produced no readback
   change on the unit tested, while `long_airflow_switch` in the same frame worked, so the
   frame is accepted and this field is not. Left in the component but not recommended.
+
+### Which entities suit which model family
+
+Several of these only mean something on one family, so enabling everything everywhere just
+adds clutter:
+
+| Entity | ZW family | R family |
+|---|---|---|
+| `unit_activity_sensor` | Yes | Yes |
+| `energy_saving_switch` | Yes — set by A.I. Auto | Yes — the HYBRID button |
+| `target_humidity_number` | Yes, with `settable_in_all_modes: true` | Yes, DRY only |
+| `left_vane_select` | Yes | Yes — the remote has both up/down buttons |
+| `buzzer_button` | Yes | Yes |
+| `auto_direction_sensor` | Yes — A.I. Auto picks a direction | Reads `NONE` in practice |
+| `jp_ai_auto_sensor` | Yes | Plain AUTO, so little value |
+| `long_airflow_switch` | Yes | Not a documented feature |
+| `thermal_image_switch` | Yes, if the model has Move Eye imaging | No |
+| `model_profile` | Yes, if captured | No profile captured yet |
+| `multi_standby_sensor` | Only on multi-split | Only on multi-split |
 
 ### Supplying the model capability profile
 

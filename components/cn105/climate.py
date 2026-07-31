@@ -118,7 +118,7 @@ CONF_TARGET_HUMIDITY_NUMBER = "target_humidity_number"
 CONF_BUZZER_BUTTON = "buzzer_button"
 CONF_AUTO_DIRECTION_SENSOR = "auto_direction_sensor"
 CONF_PROFILE_SENSOR = "profile_sensor"
-CONF_SPECIAL_STOPPING_SENSOR = "special_stopping_sensor"
+CONF_UNIT_ACTIVITY_SENSOR = "unit_activity_sensor"
 CONF_MULTI_STANDBY_SENSOR = "multi_standby_sensor"
 # Capability tables captured from the Wi-Fi adapter. Neither JP family serves
 # PROFILECODE frames over CN105, so they must be supplied here to be used.
@@ -212,8 +212,8 @@ AutoDirectionSensor = cg.global_ns.class_(
 ProfileSensor = cg.global_ns.class_(
     "ProfileSensor", text_sensor.TextSensor, cg.Component
 )
-SpecialStoppingSensor = cg.global_ns.class_(
-    "SpecialStoppingSensor", binary_sensor.BinarySensor, cg.Component
+UnitActivitySensor = cg.global_ns.class_(
+    "UnitActivitySensor", text_sensor.TextSensor, cg.Component
 )
 MultiStandbySensor = cg.global_ns.class_(
     "MultiStandbySensor", binary_sensor.BinarySensor, cg.Component
@@ -361,9 +361,9 @@ PROFILE_SENSOR_SCHEMA = text_sensor.text_sensor_schema(ProfileSensor).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(ProfileSensor)}
 )
 
-SPECIAL_STOPPING_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema(
-    SpecialStoppingSensor
-).extend({cv.GenerateID(CONF_ID): cv.declare_id(SpecialStoppingSensor)})
+UNIT_ACTIVITY_SENSOR_SCHEMA = text_sensor.text_sensor_schema(UnitActivitySensor).extend(
+    {cv.GenerateID(CONF_ID): cv.declare_id(UnitActivitySensor)}
+)
 
 MULTI_STANDBY_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema(
     MultiStandbySensor
@@ -541,9 +541,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BUZZER_BUTTON): FUNCTIONS_BUTTON_SCHEMA,
             cv.Optional(CONF_AUTO_DIRECTION_SENSOR): AUTO_DIRECTION_SENSOR_SCHEMA,
             cv.Optional(CONF_PROFILE_SENSOR): PROFILE_SENSOR_SCHEMA,
-            cv.Optional(
-                CONF_SPECIAL_STOPPING_SENSOR
-            ): SPECIAL_STOPPING_SENSOR_SCHEMA,
+            cv.Optional(CONF_UNIT_ACTIVITY_SENSOR): UNIT_ACTIVITY_SENSOR_SCHEMA,
             cv.Optional(CONF_MULTI_STANDBY_SENSOR): MULTI_STANDBY_SENSOR_SCHEMA,
             cv.Optional(CONF_MODEL_PROFILE): MODEL_PROFILE_SCHEMA,
             cv.Optional(CONF_HARDWARE_SETTINGS): HARDWARE_SETTING_SCHEMA,
@@ -841,11 +839,11 @@ def to_code(config):
         tsensor_var = yield text_sensor.new_text_sensor(config[CONF_PROFILE_SENSOR])
         cg.add(var.set_profile_sensor(tsensor_var))
 
-    if CONF_SPECIAL_STOPPING_SENSOR in config:
-        bsensor_var = yield binary_sensor.new_binary_sensor(
-            config[CONF_SPECIAL_STOPPING_SENSOR]
+    if CONF_UNIT_ACTIVITY_SENSOR in config:
+        tsensor_var = yield text_sensor.new_text_sensor(
+            config[CONF_UNIT_ACTIVITY_SENSOR]
         )
-        cg.add(var.set_special_stopping_sensor(bsensor_var))
+        cg.add(var.set_unit_activity_sensor(tsensor_var))
 
     if CONF_MULTI_STANDBY_SENSOR in config:
         bsensor_var = yield binary_sensor.new_binary_sensor(

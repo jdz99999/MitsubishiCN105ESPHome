@@ -120,7 +120,7 @@ namespace esphome {
         void set_buzzer_button(FunctionsButton* buzzer_button);
         void set_auto_direction_sensor(esphome::text_sensor::TextSensor* auto_direction_sensor);
         void set_profile_sensor(esphome::text_sensor::TextSensor* profile_sensor);
-        void set_special_stopping_sensor(esphome::binary_sensor::BinarySensor* sensor);
+        void set_unit_activity_sensor(esphome::text_sensor::TextSensor* sensor);
         void set_multi_standby_sensor(esphome::binary_sensor::BinarySensor* sensor);
 
         void add_hardware_setting(HardwareSettingSelect* setting);
@@ -184,7 +184,8 @@ namespace esphome {
         FunctionsButton* buzzer_button_ = nullptr;
         text_sensor::TextSensor* auto_direction_sensor_ = nullptr;
         text_sensor::TextSensor* profile_sensor_ = nullptr;
-        binary_sensor::BinarySensor* special_stopping_sensor_ = nullptr;
+        text_sensor::TextSensor* unit_activity_sensor_ = nullptr;
+        const char* unit_activity_state_ = nullptr;
         binary_sensor::BinarySensor* multi_standby_sensor_ = nullptr;
         const char* auto_direction_state_ = nullptr;
         std::vector<HardwareSettingSelect*> hardware_settings_;
@@ -434,6 +435,7 @@ namespace esphome {
         void getOperatingAndCompressorFreqFromResponsePacket();
         void getHVACOptionsFromResponsePacket();
         void decodeProfileFrame();
+        void publishProfileSummary();
 
         void updateSuccess();
         void processCommand();

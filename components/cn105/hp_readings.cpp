@@ -157,12 +157,16 @@ void CN105Climate::getPowerFromResponsePacket() {
     // describe three such behaviours — the internal-clean / mould-guard cycle,
     // the filter self-cleaning mechanism, and the periodic fan of the high/low
     // temperature watch, which can also restart cooling or heating by itself.
-    if (this->special_stopping_sensor_ != nullptr) {
+    if (this->unit_activity_sensor_ != nullptr) {
         const bool special_stopping = cn105_protocol::decode_special_stopping(data[5]);
-        if (!this->special_stopping_sensor_->has_state() ||
-            this->special_stopping_sensor_->state != special_stopping) {
-            ESP_LOGD("Decoder", "[Special stopping : %s] raw=0x%02X", special_stopping ? "YES" : "NO", data[5]);
-            this->special_stopping_sensor_->publish_state(special_stopping);
+        const bool powered = this->currentSettings.power != nullptr &&
+            strcmp(this->currentSettings.power, "ON") == 0;
+        const char* activity = powered ? UNIT_ACTIVITY_RUNNING
+            : (special_stopping ? UNIT_ACTIVITY_CLEANING : UNIT_ACTIVITY_IDLE);
+        if (this->unit_activity_state_ == nullptr || strcmp(activity, this->unit_activity_state_) != 0) {
+            ESP_LOGD("Decoder", "[Unit activity : %s] raw=0x%02X", activity, data[5]);
+            this->unit_activity_state_ = activity;
+            this->unit_activity_sensor_->publish_state(activity);
         }
     }
 

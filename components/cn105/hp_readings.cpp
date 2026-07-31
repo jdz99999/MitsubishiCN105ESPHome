@@ -340,6 +340,7 @@ void CN105Climate::getSettingsFromResponsePacket() {
     // sensor still publishes it unconditionally (existing behaviour), while the
     // writable number only follows it in DRY mode so it does not jump around.
     const bool inDryMode = receivedSettings.mode != nullptr && strcmp(receivedSettings.mode, "DRY") == 0;
+    const bool humidityIsMeaningful = inDryMode || this->humidityIsModeIndependent();
     uint8_t raw_humidity = data[12];
     if (raw_humidity > 0 && raw_humidity <= 100) {
         receivedRunStates.target_humidity = static_cast<int8_t>(raw_humidity);
@@ -350,7 +351,7 @@ void CN105Climate::getSettingsFromResponsePacket() {
                 this->target_humidity_sensor_->publish_state(humidity_pct);
             }
         }
-        if (inDryMode) {
+        if (humidityIsMeaningful) {
             if (this->target_humidity_number_ != nullptr && this->wantedRunStates.target_humidity < 0 &&
                 this->currentRunStates.target_humidity != receivedRunStates.target_humidity) {
                 this->target_humidity_number_->publish_state(static_cast<float>(raw_humidity));

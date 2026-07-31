@@ -229,6 +229,16 @@ namespace esphome {
         bool is_night_mode();
         bool is_circulator();
 
+        // True when the humidity target is a real, mode-independent setting rather
+        // than the 3-step dry strength. The ZW family exposes humidity as a
+        // percentage on its own remote button and accepts it while cooling or
+        // heating; the R family only has it as a dry adjustment. The CD profile
+        // distinguishes them: percent UI means a genuine humidity control.
+        // Without a profile we stay conservative and allow it in DRY only.
+        bool humidityIsModeIndependent() const {
+            return this->profile_capabilities_.humidity_shown_as_percent();
+        }
+
         // True when no profile was captured (so the capability is unknown and
         // the control stays usable), or when the profile advertises the feature.
         bool profileAllows(bool (ProfileCapabilities::* capability)() const) const {

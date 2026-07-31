@@ -327,10 +327,14 @@ void CN105Climate::set_target_humidity_number(FunctionsNumber* Number) {
     this->target_humidity_number_->setCallbackFunction([this](float value) {
         // Reject here rather than in the packet builder, so the entity never
         // reports a value the heat pump was never sent. The official client only
-        // writes this field while the unit is in DRY mode.
+        // writes this field in DRY, but the ZW family's own remote accepts it
+        // while cooling or heating, so allow that when the profile says the
+        // humidity is a percentage rather than a dry strength.
         const char* mode = this->currentSettings.mode;
-        if (mode == nullptr || strcmp(mode, "DRY") != 0) {
-            ESP_LOGW(TAG, "Target humidity is a DRY-mode setting; ignoring request (current mode %s)",
+        const bool mode_allows = this->humidityIsModeIndependent() ||
+            (mode != nullptr && strcmp(mode, "DRY") == 0);
+        if (!mode_allows) {
+            ESP_LOGW(TAG, "Target humidity is a DRY-mode setting on this model; ignoring request (current mode %s)",
                 mode ? mode : "unknown");
             if (this->currentRunStates.target_humidity > -1) {
                 this->target_humidity_number_->publish_state(

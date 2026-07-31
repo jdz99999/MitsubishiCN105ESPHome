@@ -386,9 +386,8 @@ void CN105Climate::set_auto_direction_sensor(esphome::text_sensor::TextSensor* a
 
 void CN105Climate::set_profile_sensor(esphome::text_sensor::TextSensor* profile_sensor) {
     this->profile_sensor_ = profile_sensor;
-    // A YAML-supplied profile is set before this runs, so publish it now. Otherwise
-    // a configured profile looks absent, because JP units never send the frames.
-    this->publishProfileSummary();
+    // Publishing happens in setup(), which runs after every setter, so a
+    // YAML-supplied profile shows up regardless of the order they are called in.
 }
 
 void CN105Climate::set_profile_c9(uint8_t payload_6, uint8_t payload_9) {

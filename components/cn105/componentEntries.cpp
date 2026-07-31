@@ -14,6 +14,9 @@ using namespace esphome;
 void CN105Climate::setup() {
 
     ESP_LOGD(TAG, "Component initialization: setup call");
+    // Publish a YAML-supplied capability profile here rather than from the setters:
+    // setup() runs after all of them, so it does not depend on their ordering.
+    this->publishProfileSummary();
     this->boot_ms_ = CUSTOM_MILLIS;
     this->current_temperature = NAN;
     this->target_temperature = NAN;

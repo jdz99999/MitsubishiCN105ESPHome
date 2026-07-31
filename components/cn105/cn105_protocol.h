@@ -137,6 +137,15 @@ inline ModeDecode decode_mode_byte(uint8_t raw) {
     return result;
 }
 
+/// Payload 5 of a subtype 0x09 response is a bitfield, not a plain enum: the
+/// special-stopping flag rides alongside the auto sub-mode value. Strip it before
+/// looking the sub-mode up, or a unit running a cleaning cycle reports an unknown
+/// byte. Observed live on an MSZ-ZW2525: 0x0C is JP_NON_AUTO (0x08) plus the flag.
+/// 0x04 is not a valid sub-mode on its own, so removing it cannot hide a real value.
+inline uint8_t strip_status_flags(uint8_t status_payload_5) {
+    return status_payload_5 & static_cast<uint8_t>(~0x04);
+}
+
 /// True when the unit is running something while nominally stopped. The official
 /// client calls this `isStoppingOperationMode`. On JP models it covers the
 /// internal-clean / mould-guard cycle, the filter self-cleaning mechanism, and

@@ -115,11 +115,15 @@ void CN105Climate::getPowerFromResponsePacket() {
             : SUB_MODE_MAP[0];  // default to "NORMAL" when no prior value exists
     }
 
-    auto auto_sub_mode_opt = cn105_protocol::lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, data[5]);
+    // Payload 5 is a bitfield: the special-stopping flag rides alongside the sub-mode
+    // value, so strip it before the lookup. A JP unit running a cleaning cycle while
+    // stopped otherwise reports an unknown byte on every poll.
+    const uint8_t auto_sub_mode_byte = cn105_protocol::strip_status_flags(data[5]);
+    auto auto_sub_mode_opt = cn105_protocol::lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN, auto_sub_mode_byte);
     if (auto_sub_mode_opt) {
         receivedSettings.auto_sub_mode = *auto_sub_mode_opt;
     } else {
-        ESP_LOGW("Decoder", "Unknown auto_sub_mode byte 0x%02X — keeping previous value", data[5]);
+        ESP_LOGW("Decoder", "Unknown auto_sub_mode byte 0x%02X (raw 0x%02X) — keeping previous value", auto_sub_mode_byte, data[5]);
         receivedSettings.auto_sub_mode = this->currentSettings.auto_sub_mode
             ? this->currentSettings.auto_sub_mode
             : AUTO_SUB_MODE_MAP[0];  // default to "AUTO_OFF" when no prior value exists

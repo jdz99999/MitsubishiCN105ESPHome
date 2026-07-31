@@ -370,6 +370,33 @@ void CN105Climate::set_profile_sensor(esphome::text_sensor::TextSensor* profile_
     this->profile_sensor_ = profile_sensor;
 }
 
+void CN105Climate::set_profile_c9(uint8_t payload_6, uint8_t payload_9) {
+    this->profile_capabilities_.valid = true;
+    this->profile_capabilities_.has_c9 = true;
+    this->profile_capabilities_.c9_6 = payload_6;
+    this->profile_capabilities_.c9_9 = payload_9;
+    ESP_LOGI("Profile", "C9 supplied from YAML: [6]=0x%02X [9]=0x%02X", payload_6, payload_9);
+}
+
+void CN105Climate::set_profile_cd(uint8_t payload_7, uint8_t payload_8, uint8_t payload_13) {
+    this->profile_capabilities_.valid = true;
+    this->profile_capabilities_.has_cd = true;
+    this->profile_capabilities_.cd_7 = payload_7;
+    this->profile_capabilities_.cd_8 = payload_8;
+    this->profile_capabilities_.cd_13 = payload_13;
+    ESP_LOGI("Profile", "CD supplied from YAML: [7]=0x%02X [8]=0x%02X [13]=0x%02X effective_temp=%s",
+        payload_7, payload_8, payload_13,
+        this->profile_capabilities_.uses_effective_room_temperature() ? "yes" : "no");
+}
+
+void CN105Climate::set_profile_d0(uint8_t payload_1, uint8_t payload_2) {
+    this->profile_capabilities_.valid = true;
+    this->profile_capabilities_.has_d0 = true;
+    this->profile_capabilities_.d0_1 = payload_1;
+    this->profile_capabilities_.d0_2 = payload_2;
+    ESP_LOGI("Profile", "D0 supplied from YAML: [1]=0x%02X [2]=0x%02X", payload_1, payload_2);
+}
+
 void CN105Climate::set_special_stopping_sensor(esphome::binary_sensor::BinarySensor* sensor) {
     this->special_stopping_sensor_ = sensor;
 }

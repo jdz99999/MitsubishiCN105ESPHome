@@ -120,6 +120,16 @@ CONF_AUTO_DIRECTION_SENSOR = "auto_direction_sensor"
 CONF_PROFILE_SENSOR = "profile_sensor"
 CONF_SPECIAL_STOPPING_SENSOR = "special_stopping_sensor"
 CONF_MULTI_STANDBY_SENSOR = "multi_standby_sensor"
+# Capability tables captured from the Wi-Fi adapter. Neither JP family serves
+# PROFILECODE frames over CN105, so they must be supplied here to be used.
+CONF_MODEL_PROFILE = "model_profile"
+CONF_PROFILE_C9_6 = "c9_6"
+CONF_PROFILE_C9_9 = "c9_9"
+CONF_PROFILE_CD_7 = "cd_7"
+CONF_PROFILE_CD_8 = "cd_8"
+CONF_PROFILE_CD_13 = "cd_13"
+CONF_PROFILE_D0_1 = "d0_1"
+CONF_PROFILE_D0_2 = "d0_2"
 CONF_HARDWARE_SETTINGS = "hardware_settings"
 CONF_CODE = "code"
 CONF_OPTIONS = "options"
@@ -398,6 +408,18 @@ HP_UP_TIME_CONNECTION_SENSOR_SCHEMA = sensor.sensor_schema(
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
 ).extend(cv.polling_component_schema("60s"))
 
+MODEL_PROFILE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PROFILE_C9_6): cv.hex_uint8_t,
+        cv.Optional(CONF_PROFILE_C9_9): cv.hex_uint8_t,
+        cv.Optional(CONF_PROFILE_CD_7): cv.hex_uint8_t,
+        cv.Optional(CONF_PROFILE_CD_8): cv.hex_uint8_t,
+        cv.Optional(CONF_PROFILE_CD_13): cv.hex_uint8_t,
+        cv.Optional(CONF_PROFILE_D0_1): cv.hex_uint8_t,
+        cv.Optional(CONF_PROFILE_D0_2): cv.hex_uint8_t,
+    }
+)
+
 HVAC_OPTION_SWITCH_SCHEMA = switch.switch_schema(HVACOptionSwitch).extend(
     {cv.GenerateID(CONF_ID): cv.declare_id(HVACOptionSwitch)}
 )
@@ -516,6 +538,7 @@ CONFIG_SCHEMA = (
                 CONF_SPECIAL_STOPPING_SENSOR
             ): SPECIAL_STOPPING_SENSOR_SCHEMA,
             cv.Optional(CONF_MULTI_STANDBY_SENSOR): MULTI_STANDBY_SENSOR_SCHEMA,
+            cv.Optional(CONF_MODEL_PROFILE): MODEL_PROFILE_SCHEMA,
             cv.Optional(CONF_HARDWARE_SETTINGS): HARDWARE_SETTING_SCHEMA,
             cv.Optional(CONF_RAW_PROBE): RAW_PROBE_SCHEMA,
             cv.Optional(
@@ -817,6 +840,35 @@ def to_code(config):
             config[CONF_MULTI_STANDBY_SENSOR]
         )
         cg.add(var.set_multi_standby_sensor(bsensor_var))
+
+    if CONF_MODEL_PROFILE in config:
+        profile = config[CONF_MODEL_PROFILE]
+        if CONF_PROFILE_C9_6 in profile or CONF_PROFILE_C9_9 in profile:
+            cg.add(
+                var.set_profile_c9(
+                    profile.get(CONF_PROFILE_C9_6, 0),
+                    profile.get(CONF_PROFILE_C9_9, 0),
+                )
+            )
+        if (
+            CONF_PROFILE_CD_7 in profile
+            or CONF_PROFILE_CD_8 in profile
+            or CONF_PROFILE_CD_13 in profile
+        ):
+            cg.add(
+                var.set_profile_cd(
+                    profile.get(CONF_PROFILE_CD_7, 0),
+                    profile.get(CONF_PROFILE_CD_8, 0),
+                    profile.get(CONF_PROFILE_CD_13, 0),
+                )
+            )
+        if CONF_PROFILE_D0_1 in profile or CONF_PROFILE_D0_2 in profile:
+            cg.add(
+                var.set_profile_d0(
+                    profile.get(CONF_PROFILE_D0_1, 0),
+                    profile.get(CONF_PROFILE_D0_2, 0),
+                )
+            )
 
     # Set Fahrenheit compatibility mode (cast int to FahrenheitMode enum)
     # The enum validator returns the integer value from FAHRENHEIT_MODES dict

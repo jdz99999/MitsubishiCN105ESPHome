@@ -75,6 +75,14 @@ namespace esphome {
 
         const ProfileCapabilities& profile_capabilities() const { return this->profile_capabilities_; }
 
+        // Seed the capability tables from YAML. Both JP families refuse to serve
+        // PROFILECODE frames over CN105 — they only come from the Wi-Fi adapter's
+        // /smart endpoint — so without this the tables are never learned and every
+        // capability-dependent decision falls back to its default.
+        void set_profile_c9(uint8_t payload_6, uint8_t payload_9);
+        void set_profile_cd(uint8_t payload_7, uint8_t payload_8, uint8_t payload_13);
+        void set_profile_d0(uint8_t payload_1, uint8_t payload_2);
+
         enum class VaneType {
             STANDARD = 0,
             SPLIT_HORIZONTAL = 1,

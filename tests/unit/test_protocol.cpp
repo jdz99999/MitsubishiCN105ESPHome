@@ -635,3 +635,21 @@ TEST(ProtocolStatusFlags, StoppingAndDirectionAreIndependentBits) {
     EXPECT_EQ(decode_auto_direction(0x1C), AutoDirection::HEATING);
     EXPECT_TRUE(decode_special_stopping(0x1C));
 }
+
+TEST(ProtocolStatusFlags, SubModeLookupIgnoresTheStoppingBit) {
+    // Live MSZ-ZW2525 reported 0x0C while running a cleaning cycle after being
+    // switched off: JP_NON_AUTO (0x08) with the special-stopping flag (0x04).
+    EXPECT_EQ(strip_status_flags(0x0C), 0x08);
+    auto sub_mode = lookup_value_opt(AUTO_SUB_MODE_MAP, AUTO_SUB_MODE, AUTO_SUB_MODE_LEN,
+                                     strip_status_flags(0x0C));
+    ASSERT_TRUE(sub_mode.has_value());
+    EXPECT_STREQ(*sub_mode, "JP_NON_AUTO");
+    EXPECT_TRUE(decode_special_stopping(0x0C));
+
+    // The auto-direction values must still resolve with the flag set.
+    EXPECT_EQ(strip_status_flags(0x1C), 0x18);
+    EXPECT_EQ(strip_status_flags(0x2C), 0x28);
+    // And values without the flag must pass through untouched.
+    EXPECT_EQ(strip_status_flags(0x43), 0x43);
+    EXPECT_EQ(strip_status_flags(0x00), 0x00);
+}

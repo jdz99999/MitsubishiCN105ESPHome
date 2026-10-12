@@ -243,14 +243,27 @@ namespace esphome {
         bool humidityIsModeIndependent() const {
             // An explicit YAML flag wins; otherwise fall back to the CD profile,
             // which reports a percentage UI on models with a real humidity control.
+            //
+            // The plain bool (unknown -> false) is deliberate here, unlike the
+            // gates below: writing a humidity percentage outside DRY to a model
+            // that only has a dry-strength adjustment is the risky direction, so
+            // an unknown profile must stay restrictive rather than permissive.
             return this->humidity_all_modes_ ||
                 this->profile_capabilities_.humidity_shown_as_percent();
         }
 
-        // True when no profile was captured (so the capability is unknown and
-        // the control stays usable), or when the profile advertises the feature.
-        bool profileAllows(bool (ProfileCapabilities::* capability)() const) const {
-            return !this->profile_capabilities_.valid || (this->profile_capabilities_.*capability)();
+        // True when the capability is unknown -- the table that would have
+        // answered never arrived, so the control stays usable -- or when the
+        // profile positively advertises the feature.
+        //
+        // Takes the tri-state accessor on purpose. The bool form collapses
+        // unknown to false, which would reject every command for a capability
+        // whose table simply was not supplied, and the previous version of this
+        // gate tested `valid` ("some table arrived") instead, which had exactly
+        // that effect on a partial profile.
+        bool profileAllows(std::optional<bool> (ProfileCapabilities::* capability)() const) const {
+            const std::optional<bool> answer = (this->profile_capabilities_.*capability)();
+            return !answer.has_value() || *answer;
         }
 
         // checks if the field has changed

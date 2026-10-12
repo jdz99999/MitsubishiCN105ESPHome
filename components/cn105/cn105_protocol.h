@@ -185,7 +185,13 @@ inline AutoDirection decode_auto_direction(uint8_t status_payload_5) {
 /// These are read-only: they describe what the model advertises and never
 /// enable a write on their own.
 struct ProfileCapabilities {
+    // "Something arrived" -- any table, or just the D1 model string. It is for
+    // diagnostics only (publishProfileSummary decides whether it has anything
+    // worth showing). Never gate a capability on it: it does not say *which*
+    // table arrived, and using it that way made a partial profile read as a
+    // model that lacks every feature in the tables left out.
     bool valid = false;
+    // These are the real question. Each capability consults exactly one.
     bool has_c9 = false;
     bool has_cd = false;
     bool has_d0 = false;
@@ -198,25 +204,63 @@ struct ProfileCapabilities {
     uint8_t d0_2 = 0;
     char model[13] = {};   // D1 payload 1..12, e.g. "MSZZ***9025*"
 
-    bool supports_thermal_image() const { return has_c9 && (c9_6 & 0x08) != 0; }
-    bool supports_touch_flow() const { return has_c9 && (c9_6 & 0x40) != 0; }
-    bool supports_auto_mode() const { return has_c9 && (c9_6 & 0x80) != 0; }
-    bool supports_outside_temperature() const { return has_c9 && (c9_9 & 0x20) != 0; }
+    // Every capability lives in exactly one table. When that table never
+    // arrived the answer is genuinely *unknown*, which is not the same as
+    // "the model says no" -- a distinction the README promises ("a partial
+    // profile never implies a capability it says nothing about") and which
+    // the gates in profileAllows() depend on.
+    //
+    // The `_opt` accessors are the real answer: nullopt means "the table that
+    // would have told us never arrived". The plain bool wrappers collapse
+    // unknown to false and exist only for diagnostics, where a yes/no is all
+    // that is wanted. Do not gate behaviour on the bool form -- use the
+    // tri-state, or an absent table silently reads as an absent feature.
+    //
+    // Note `valid` is deliberately NOT consulted here: it means "some table
+    // arrived", not "this table arrived", so it cannot answer the question.
+    std::optional<bool> in_c9(bool bit) const { return has_c9 ? std::optional<bool>(bit) : std::nullopt; }
+    std::optional<bool> in_cd(bool bit) const { return has_cd ? std::optional<bool>(bit) : std::nullopt; }
+    std::optional<bool> in_d0(bool bit) const { return has_d0 ? std::optional<bool>(bit) : std::nullopt; }
 
-    bool humidity_shown_as_percent() const { return has_cd && (cd_7 & 0x01) != 0; }
-    bool supports_energy_saving() const { return has_cd && (cd_7 & 0x02) != 0 && (cd_7 & 0x20) == 0; }
-    bool supports_remote_handling() const { return has_cd && (cd_7 & 0x04) != 0; }
-    bool uses_effective_room_temperature() const { return has_cd && (cd_7 & 0x10) != 0; }
-    bool supports_ventilation_assist() const { return has_cd && (cd_8 & 0x40) != 0; }
-    bool supports_online_serial_write() const { return has_cd && (cd_13 & 0x40) != 0; }
+    std::optional<bool> supports_thermal_image_opt() const { return in_c9((c9_6 & 0x08) != 0); }
+    std::optional<bool> supports_touch_flow_opt() const { return in_c9((c9_6 & 0x40) != 0); }
+    std::optional<bool> supports_auto_mode_opt() const { return in_c9((c9_6 & 0x80) != 0); }
+    std::optional<bool> supports_outside_temperature_opt() const { return in_c9((c9_9 & 0x20) != 0); }
 
-    bool supports_vital_sensor() const { return has_d0 && (d0_1 & 0x10) != 0 && (d0_1 & 0x60) == 0; }
-    bool supports_stopped_sensing() const { return has_d0 && (d0_2 & 0x01) != 0; }
-    bool displays_fan_speed() const { return has_d0 && (d0_2 & 0x04) != 0; }
-    bool displays_vertical_vane() const { return has_d0 && (d0_2 & 0x08) != 0; }
-    bool displays_horizontal_vane() const { return has_d0 && (d0_2 & 0x20) != 0; }
-    bool supports_long_airflow() const { return has_d0 && (d0_2 & 0x40) != 0; }
-    bool supports_special_airflow() const { return has_d0 && (d0_2 & 0x80) != 0; }
+    std::optional<bool> humidity_shown_as_percent_opt() const { return in_cd((cd_7 & 0x01) != 0); }
+    std::optional<bool> supports_energy_saving_opt() const { return in_cd((cd_7 & 0x02) != 0 && (cd_7 & 0x20) == 0); }
+    std::optional<bool> supports_remote_handling_opt() const { return in_cd((cd_7 & 0x04) != 0); }
+    std::optional<bool> uses_effective_room_temperature_opt() const { return in_cd((cd_7 & 0x10) != 0); }
+    std::optional<bool> supports_ventilation_assist_opt() const { return in_cd((cd_8 & 0x40) != 0); }
+    std::optional<bool> supports_online_serial_write_opt() const { return in_cd((cd_13 & 0x40) != 0); }
+
+    std::optional<bool> supports_vital_sensor_opt() const { return in_d0((d0_1 & 0x10) != 0 && (d0_1 & 0x60) == 0); }
+    std::optional<bool> supports_stopped_sensing_opt() const { return in_d0((d0_2 & 0x01) != 0); }
+    std::optional<bool> displays_fan_speed_opt() const { return in_d0((d0_2 & 0x04) != 0); }
+    std::optional<bool> displays_vertical_vane_opt() const { return in_d0((d0_2 & 0x08) != 0); }
+    std::optional<bool> displays_horizontal_vane_opt() const { return in_d0((d0_2 & 0x20) != 0); }
+    std::optional<bool> supports_long_airflow_opt() const { return in_d0((d0_2 & 0x40) != 0); }
+    std::optional<bool> supports_special_airflow_opt() const { return in_d0((d0_2 & 0x80) != 0); }
+
+    bool supports_thermal_image() const { return supports_thermal_image_opt().value_or(false); }
+    bool supports_touch_flow() const { return supports_touch_flow_opt().value_or(false); }
+    bool supports_auto_mode() const { return supports_auto_mode_opt().value_or(false); }
+    bool supports_outside_temperature() const { return supports_outside_temperature_opt().value_or(false); }
+
+    bool humidity_shown_as_percent() const { return humidity_shown_as_percent_opt().value_or(false); }
+    bool supports_energy_saving() const { return supports_energy_saving_opt().value_or(false); }
+    bool supports_remote_handling() const { return supports_remote_handling_opt().value_or(false); }
+    bool uses_effective_room_temperature() const { return uses_effective_room_temperature_opt().value_or(false); }
+    bool supports_ventilation_assist() const { return supports_ventilation_assist_opt().value_or(false); }
+    bool supports_online_serial_write() const { return supports_online_serial_write_opt().value_or(false); }
+
+    bool supports_vital_sensor() const { return supports_vital_sensor_opt().value_or(false); }
+    bool supports_stopped_sensing() const { return supports_stopped_sensing_opt().value_or(false); }
+    bool displays_fan_speed() const { return displays_fan_speed_opt().value_or(false); }
+    bool displays_vertical_vane() const { return displays_vertical_vane_opt().value_or(false); }
+    bool displays_horizontal_vane() const { return displays_horizontal_vane_opt().value_or(false); }
+    bool supports_long_airflow() const { return supports_long_airflow_opt().value_or(false); }
+    bool supports_special_airflow() const { return supports_special_airflow_opt().value_or(false); }
 };
 
 /// Decode one PROFILECODE payload into `caps`. `payload[0]` is the table id.

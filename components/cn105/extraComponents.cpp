@@ -275,7 +275,7 @@ void CN105Climate::set_circulator_switch(HVACOptionSwitch* Switch) { // only in 
 void CN105Climate::set_energy_saving_switch(HVACOptionSwitch* Switch) {
     this->energy_saving_switch_ = Switch;
     this->energy_saving_switch_->setCallbackFunction([this](bool state) {
-        if (!this->profileAllows(&ProfileCapabilities::supports_energy_saving)) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_energy_saving_opt)) {
             ESP_LOGW(TAG, "Model profile does not advertise energy saving; ignoring request");
             this->energy_saving_switch_->publish_state(this->currentRunStates.energy_saving > 0);
             return;
@@ -291,7 +291,7 @@ void CN105Climate::set_energy_saving_switch(HVACOptionSwitch* Switch) {
 void CN105Climate::set_thermal_image_switch(HVACOptionSwitch* Switch) {
     this->thermal_image_switch_ = Switch;
     this->thermal_image_switch_->setCallbackFunction([this](bool state) {
-        if (!this->profileAllows(&ProfileCapabilities::supports_thermal_image)) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_thermal_image_opt)) {
             ESP_LOGW(TAG, "Model profile does not advertise the thermal image; ignoring request");
             this->thermal_image_switch_->publish_state(this->currentRunStates.thermal_image > 0);
             return;
@@ -307,7 +307,7 @@ void CN105Climate::set_thermal_image_switch(HVACOptionSwitch* Switch) {
 void CN105Climate::set_long_airflow_switch(HVACOptionSwitch* Switch) {
     this->long_airflow_switch_ = Switch;
     this->long_airflow_switch_->setCallbackFunction([this](bool state) {
-        if (!this->profileAllows(&ProfileCapabilities::supports_long_airflow)) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_long_airflow_opt)) {
             ESP_LOGW(TAG, "Model profile does not advertise Long airflow; ignoring request");
             this->long_airflow_switch_->publish_state(this->currentRunStates.long_airflow > 0);
             return;
@@ -323,7 +323,7 @@ void CN105Climate::set_long_airflow_switch(HVACOptionSwitch* Switch) {
 void CN105Climate::set_stopped_sensing_switch(HVACOptionSwitch* Switch) {
     this->stopped_sensing_switch_ = Switch;
     this->stopped_sensing_switch_->setCallbackFunction([this](bool state) {
-        if (!this->profileAllows(&ProfileCapabilities::supports_stopped_sensing)) {
+        if (!this->profileAllows(&ProfileCapabilities::supports_stopped_sensing_opt)) {
             ESP_LOGW(TAG, "Model profile does not advertise stopped-state sensing; ignoring request");
             this->stopped_sensing_switch_->publish_state(this->currentRunStates.stopped_sensing > 0);
             return;

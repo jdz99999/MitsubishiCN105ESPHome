@@ -491,6 +491,86 @@ TEST(ProtocolProfile, CapabilitiesAreFalseWithoutTheirTable) {
     EXPECT_FALSE(caps.supports_long_airflow());
 }
 
+namespace {
+// Mirror of CN105Climate::profileAllows(), which this standalone suite cannot
+// reach (it lives in cn105.h and needs the full ESPHome runtime). An unknown
+// capability is permitted; a table that arrived and says no is not.
+bool allows(std::optional<bool> answer) { return !answer.has_value() || *answer; }
+}  // namespace
+
+TEST(ProtocolProfile, MissingTableIsUnknownRatherThanDenied) {
+    ProfileCapabilities caps{};
+    ASSERT_TRUE(decode_profile_payload(kProfileCD, 16, caps));
+
+    // CD arrived, so its answers are definite.
+    ASSERT_TRUE(caps.supports_energy_saving_opt().has_value());
+    EXPECT_TRUE(*caps.supports_energy_saving_opt());
+
+    // C9 and D0 never did. Their answers must be absent, not a positive
+    // "this model lacks the feature" -- the distinction the capability gates
+    // depend on.
+    EXPECT_FALSE(caps.supports_thermal_image_opt().has_value());
+    EXPECT_FALSE(caps.supports_long_airflow_opt().has_value());
+    EXPECT_FALSE(caps.supports_stopped_sensing_opt().has_value());
+    EXPECT_FALSE(caps.supports_special_airflow_opt().has_value());
+
+    // `valid` is true because *a* table arrived. Reading it as "every table
+    // arrived" is precisely the bug these tests guard against.
+    EXPECT_TRUE(caps.valid);
+}
+
+TEST(ProtocolProfile, PartialProfileKeepsUntouchedControlsUsable) {
+    // A CD-only profile, which the README explicitly invites, must leave every
+    // D0- and C9-gated control working rather than rejecting its commands.
+    ProfileCapabilities only_cd{};
+    ASSERT_TRUE(decode_profile_payload(kProfileCD, 16, only_cd));
+    EXPECT_TRUE(allows(only_cd.supports_long_airflow_opt()));
+    EXPECT_TRUE(allows(only_cd.supports_stopped_sensing_opt()));
+    EXPECT_TRUE(allows(only_cd.supports_thermal_image_opt()));
+
+    // A table that did arrive and reports the feature absent must still deny.
+    ProfileCapabilities d0_clear{};
+    const uint8_t d0_all_bits_clear[16] = { 0xd0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    ASSERT_TRUE(decode_profile_payload(d0_all_bits_clear, 16, d0_clear));
+    EXPECT_FALSE(allows(d0_clear.supports_long_airflow_opt()));
+    EXPECT_FALSE(allows(d0_clear.supports_stopped_sensing_opt()));
+
+    // An empty profile permits everything, which is the no-profile default the
+    // JP units actually run in -- neither of them answers a PROFILECODE
+    // request, so this is the live configuration, not an edge case.
+    ProfileCapabilities none{};
+    EXPECT_TRUE(allows(none.supports_long_airflow_opt()));
+    EXPECT_TRUE(allows(none.supports_energy_saving_opt()));
+    EXPECT_TRUE(allows(none.supports_thermal_image_opt()));
+}
+
+TEST(ProtocolProfile, ModelStringAloneClaimsNoCapabilities) {
+    ProfileCapabilities caps{};
+    ASSERT_TRUE(decode_profile_payload(kProfileD1, 16, caps));
+    EXPECT_STREQ(caps.model, "MSZZ***9025*");
+
+    // D1 carries a model string and no capability bits, so it must neither
+    // claim nor deny anything, even though it does set `valid`.
+    EXPECT_FALSE(caps.supports_thermal_image_opt().has_value());
+    EXPECT_FALSE(caps.supports_energy_saving_opt().has_value());
+    EXPECT_FALSE(caps.supports_long_airflow_opt().has_value());
+    EXPECT_TRUE(allows(caps.supports_long_airflow_opt()));
+    EXPECT_TRUE(allows(caps.supports_energy_saving_opt()));
+}
+
+TEST(ProtocolHumidity, ClampKeepsReadbackOnTheEntityGrid) {
+    // The number entity is declared 40..70 in steps of 10, while the readback
+    // byte is accepted for anything in 1..100. Every value the unit can report
+    // therefore has to land on that grid, or Home Assistant rejects the state.
+    for (int raw = 1; raw <= 100; ++raw) {
+        const uint8_t clamped = clamp_target_humidity(raw);
+        EXPECT_GE(clamped, 40) << "raw=" << raw;
+        EXPECT_LE(clamped, 70) << "raw=" << raw;
+        EXPECT_EQ(clamped % 10, 0) << "raw=" << raw;
+    }
+}
+
 TEST(ProtocolRoomTemperature, UsesEffectiveByteOnlyWhenAdvertised) {
     // Captured pair: legacy 0xB4 = 26.0 C, effective 0xB5 = 26.5 C.
     EXPECT_EQ(select_room_temperature_byte(0xb4, 0xb5, true), 0xb5);

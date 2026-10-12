@@ -413,16 +413,48 @@ TARGET_HUMIDITY_NUMBER_SCHEMA = FUNCTIONS_NUMBER_SCHEMA.extend(
     {cv.Optional(CONF_HUMIDITY_ALL_MODES, default=False): cv.boolean}
 )
 
-MODEL_PROFILE_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_PROFILE_C9_6): cv.hex_uint8_t,
-        cv.Optional(CONF_PROFILE_C9_9): cv.hex_uint8_t,
-        cv.Optional(CONF_PROFILE_CD_7): cv.hex_uint8_t,
-        cv.Optional(CONF_PROFILE_CD_8): cv.hex_uint8_t,
-        cv.Optional(CONF_PROFILE_CD_13): cv.hex_uint8_t,
-        cv.Optional(CONF_PROFILE_D0_1): cv.hex_uint8_t,
-        cv.Optional(CONF_PROFILE_D0_2): cv.hex_uint8_t,
-    }
+# A capability table is all-or-nothing. Supplying only some of a table's bytes
+# used to mark the whole table "known" with the missing bytes defaulting to
+# 0x00, which reads as a positive "this model does not have that feature"
+# rather than "unknown" -- silently switching off every capability carried by
+# the bytes that were left out. Tables may still be omitted entirely; that is
+# what "a partial profile never implies a capability it says nothing about"
+# in the README means, and the firmware treats an absent table as unknown.
+PROFILE_TABLE_GROUPS = {
+    "C9": (CONF_PROFILE_C9_6, CONF_PROFILE_C9_9),
+    "CD": (CONF_PROFILE_CD_7, CONF_PROFILE_CD_8, CONF_PROFILE_CD_13),
+    "D0": (CONF_PROFILE_D0_1, CONF_PROFILE_D0_2),
+}
+
+
+def validate_profile_tables(config):
+    for table, keys in PROFILE_TABLE_GROUPS.items():
+        present = [k for k in keys if k in config]
+        if present and len(present) != len(keys):
+            missing = [k for k in keys if k not in config]
+            raise cv.Invalid(
+                f"model_profile table {table} is incomplete: given "
+                f"{', '.join(present)} but missing {', '.join(missing)}. "
+                f"Supply every byte of a table ({', '.join(keys)}) or leave the "
+                f"table out entirely -- a half-supplied table would report its "
+                f"missing bytes as 0x00, which disables the features they carry."
+            )
+    return config
+
+
+MODEL_PROFILE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_PROFILE_C9_6): cv.hex_uint8_t,
+            cv.Optional(CONF_PROFILE_C9_9): cv.hex_uint8_t,
+            cv.Optional(CONF_PROFILE_CD_7): cv.hex_uint8_t,
+            cv.Optional(CONF_PROFILE_CD_8): cv.hex_uint8_t,
+            cv.Optional(CONF_PROFILE_CD_13): cv.hex_uint8_t,
+            cv.Optional(CONF_PROFILE_D0_1): cv.hex_uint8_t,
+            cv.Optional(CONF_PROFILE_D0_2): cv.hex_uint8_t,
+        }
+    ),
+    validate_profile_tables,
 )
 
 HVAC_OPTION_SWITCH_SCHEMA = switch.switch_schema(HVACOptionSwitch).extend(
@@ -853,30 +885,30 @@ def to_code(config):
 
     if CONF_MODEL_PROFILE in config:
         profile = config[CONF_MODEL_PROFILE]
-        if CONF_PROFILE_C9_6 in profile or CONF_PROFILE_C9_9 in profile:
+        # validate_profile_tables() guarantees each table is either absent or
+        # complete, so index directly rather than defaulting a missing byte to
+        # 0x00 -- that default is what previously turned "byte not supplied"
+        # into a positive "feature not present".
+        if CONF_PROFILE_C9_6 in profile:
             cg.add(
                 var.set_profile_c9(
-                    profile.get(CONF_PROFILE_C9_6, 0),
-                    profile.get(CONF_PROFILE_C9_9, 0),
+                    profile[CONF_PROFILE_C9_6],
+                    profile[CONF_PROFILE_C9_9],
                 )
             )
-        if (
-            CONF_PROFILE_CD_7 in profile
-            or CONF_PROFILE_CD_8 in profile
-            or CONF_PROFILE_CD_13 in profile
-        ):
+        if CONF_PROFILE_CD_7 in profile:
             cg.add(
                 var.set_profile_cd(
-                    profile.get(CONF_PROFILE_CD_7, 0),
-                    profile.get(CONF_PROFILE_CD_8, 0),
-                    profile.get(CONF_PROFILE_CD_13, 0),
+                    profile[CONF_PROFILE_CD_7],
+                    profile[CONF_PROFILE_CD_8],
+                    profile[CONF_PROFILE_CD_13],
                 )
             )
-        if CONF_PROFILE_D0_1 in profile or CONF_PROFILE_D0_2 in profile:
+        if CONF_PROFILE_D0_1 in profile:
             cg.add(
                 var.set_profile_d0(
-                    profile.get(CONF_PROFILE_D0_1, 0),
-                    profile.get(CONF_PROFILE_D0_2, 0),
+                    profile[CONF_PROFILE_D0_1],
+                    profile[CONF_PROFILE_D0_2],
                 )
             )
 

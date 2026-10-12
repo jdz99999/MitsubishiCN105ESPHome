@@ -358,7 +358,14 @@ void CN105Climate::getSettingsFromResponsePacket() {
         if (humidityIsMeaningful) {
             if (this->target_humidity_number_ != nullptr && this->wantedRunStates.target_humidity < 0 &&
                 this->currentRunStates.target_humidity != receivedRunStates.target_humidity) {
-                this->target_humidity_number_->publish_state(static_cast<float>(raw_humidity));
+                // The number entity is declared 40..70 in steps of 10, but this
+                // byte is accepted for anything in 1..100, so publishing it raw
+                // can put the entity outside its own range/grid and Home
+                // Assistant rejects the state. Clamp the same way the write
+                // path does. The unclamped figure stays available on
+                // target_humidity_sensor_, which has no such constraint.
+                this->target_humidity_number_->publish_state(
+                    static_cast<float>(cn105_protocol::clamp_target_humidity(raw_humidity)));
             }
             this->currentRunStates.target_humidity = receivedRunStates.target_humidity;
         }
@@ -381,9 +388,13 @@ void CN105Climate::getSettingsFromResponsePacket() {
     // the D0 profile instead. Only fall back to the legacy wide-vane/i-See gate
     // when no profile was captured, so models without the feature are unaffected.
     if (this->airflow_control_select_ != nullptr) {
-        const bool profileKnowsAirflow = this->profile_capabilities_.valid;
-        const bool airflowReported = profileKnowsAirflow
-            ? this->profile_capabilities_.supports_special_airflow()
+        // Gate on the D0 table specifically, not on `valid`: that flag only
+        // means *some* table arrived, so a profile supplying only C9/CD would
+        // read as "no special airflow" and skip the legacy fallback as well,
+        // pinning this select to NORMAL for good.
+        const auto specialAirflow = this->profile_capabilities_.supports_special_airflow_opt();
+        const bool airflowReported = specialAirflow
+            ? *specialAirflow
             : (data[10] == 0x80 && receivedSettings.iSee);
 
         if (airflowReported) {

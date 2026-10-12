@@ -2,8 +2,12 @@ name: Build
 
 on:
   push:
+    # The JP work happens on jp-kirigamine and is pushed to a fork rather than
+    # opened as a PR, so restricting this to main meant the unit tests never
+    # ran against that branch at all.
     branches:
       - main
+      - jp-kirigamine
   workflow_dispatch:
   pull_request:
 

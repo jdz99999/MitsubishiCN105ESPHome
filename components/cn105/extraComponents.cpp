@@ -37,13 +37,28 @@ void CN105Climate::set_vertical_vane_select(
         // it. The official app avoids that by sending the subtype 0x33 left-vane frame
         // in the same batch, re-asserting the left position. Do the same: queue the
         // current left vane so it is restored right after the 0x01 write.
+        //
+        // Except when the left vane is on AUTO. LEFT_VANE_MAP[0] is a *mode*, not a
+        // position, so re-asserting it tells the unit "you choose" and the flap is free
+        // to follow the right-vane command. Hardware-verified 2026-10-13 on both
+        // families: with the left vane pinned the re-assert carries the real byte and
+        // the flap holds across every following poll, but on AUTO the frame goes out as
+        // `33 02 00 00 00` and changes nothing. The readback reports AUTO either way,
+        // so the position is invisible to us -- warn once rather than send a no-op
+        // frame and log that we re-asserted something.
         if (this->left_vane_select_ != nullptr && this->currentSettings.left_vane != nullptr) {
-            ESP_LOGD("EVT", "re-asserting left vane %s after a right-vane change",
-                this->currentSettings.left_vane);
-            this->wantedRunStates.left_vane = this->currentSettings.left_vane;
-            this->wantedRunStates.hasChanged = true;
-            this->wantedRunStates.hasBeenSent = false;
-            this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+            if (strcmp(this->currentSettings.left_vane, LEFT_VANE_MAP[0]) == 0) {
+                ESP_LOGW(TAG, "Left vane is on %s, which cannot be held through a right-vane "
+                    "change: the unit may move it. Pin the left vane to a fixed position to "
+                    "keep it put.", LEFT_VANE_MAP[0]);
+            } else {
+                ESP_LOGD("EVT", "re-asserting left vane %s after a right-vane change",
+                    this->currentSettings.left_vane);
+                this->wantedRunStates.left_vane = this->currentSettings.left_vane;
+                this->wantedRunStates.hasChanged = true;
+                this->wantedRunStates.hasBeenSent = false;
+                this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+            }
         }
         });
 
@@ -277,6 +292,15 @@ void CN105Climate::set_energy_saving_switch(HVACOptionSwitch* Switch) {
     this->energy_saving_switch_->setCallbackFunction([this](bool state) {
         if (!this->profileAllows(&ProfileCapabilities::supports_energy_saving_opt)) {
             ESP_LOGW(TAG, "Model profile does not advertise energy saving; ignoring request");
+            this->energy_saving_switch_->publish_state(this->currentRunStates.energy_saving > 0);
+            return;
+        }
+        // Turning it on is mode-restricted; turning it off never is, so an
+        // unavailable mode can still clear a flag the unit is already holding.
+        if (state && !cn105_protocol::energy_saving_allowed_in_mode(this->currentSettings.mode)) {
+            ESP_LOGW(TAG, "Energy saving is a cool/heat/auto setting on this model; ignoring "
+                "request (current mode %s)",
+                this->currentSettings.mode ? this->currentSettings.mode : "unknown");
             this->energy_saving_switch_->publish_state(this->currentRunStates.energy_saving > 0);
             return;
         }

@@ -733,3 +733,71 @@ TEST(ProtocolStatusFlags, SubModeLookupIgnoresTheStoppingBit) {
     EXPECT_EQ(strip_status_flags(0x43), 0x43);
     EXPECT_EQ(strip_status_flags(0x00), 0x00);
 }
+
+// ════════════════════════════════════════════════════════════════
+// Energy saving is only available in cool, heat and auto
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolEnergySaving, OnlyAvailableInCoolHeatAndAuto) {
+    // Hardware 2026-10-13 (LDK): the same byte-correct write was dropped in
+    // FAN_ONLY and latched in HEAT. The manual excludes dry and air-clean/fan
+    // as well, so the gate has to match the manual rather than that one probe.
+    EXPECT_TRUE(energy_saving_allowed_in_mode("HEAT"));
+    EXPECT_TRUE(energy_saving_allowed_in_mode("COOL"));
+    EXPECT_TRUE(energy_saving_allowed_in_mode("AUTO"));
+    EXPECT_FALSE(energy_saving_allowed_in_mode("FAN"));
+    EXPECT_FALSE(energy_saving_allowed_in_mode("DRY"));
+}
+
+TEST(ProtocolEnergySaving, UnknownModeIsAllowedRatherThanBlocked) {
+    // No mode read yet must never disable the control -- the same
+    // unknown-is-permitted rule the capability profile now follows.
+    EXPECT_TRUE(energy_saving_allowed_in_mode(nullptr));
+}
+
+TEST(ProtocolEnergySaving, EveryModeMapEntryIsClassified) {
+    // Guards against a MODE_MAP entry being added without deciding whether
+    // energy saving applies to it. Mirrors MODE_MAP from cn105_types.h.
+    const char* const modes[] = { "HEAT", "DRY", "COOL", "FAN", "AUTO" };
+    int allowed = 0;
+    for (const char* mode : modes) {
+        if (energy_saving_allowed_in_mode(mode)) ++allowed;
+    }
+    EXPECT_EQ(allowed, 3) << "expected exactly HEAT, COOL and AUTO to be allowed";
+}
+
+// ════════════════════════════════════════════════════════════════
+// The left vane cannot be held through a right-vane change on AUTO
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolVaneExtension, AutoLeftVaneEncodesAsZeroSoReassertIsANoOp) {
+    // LEFT_VANE_MAP[0] is AUTO and LEFT_VANE[0] is 0x00. Re-asserting it
+    // produces `33 02 00 00 00`, which hands the flap back to the unit --
+    // exactly what the firmware must now refuse to send. Pinned positions
+    // encode to a non-zero byte and are worth re-asserting.
+    uint8_t packet[22] = {};
+    VaneExtensionRequest autoRequest{};
+    autoRequest.left_vane = 0x00;  // LEFT_VANE[0], AUTO
+    ASSERT_TRUE(apply_vane_extension_request(packet, autoRequest));
+    EXPECT_EQ(packet[payload_offset(0)], 0x33);
+    EXPECT_EQ(packet[payload_offset(1)], 0x02);
+    EXPECT_EQ(packet[payload_offset(4)], 0x00) << "AUTO carries no position";
+
+    uint8_t pinned[22] = {};
+    VaneExtensionRequest pinnedRequest{};
+    pinnedRequest.left_vane = 0x02;  // LEFT_VANE[2], one notch up
+    ASSERT_TRUE(apply_vane_extension_request(pinned, pinnedRequest));
+    EXPECT_EQ(pinned[payload_offset(4)], 0x02);
+}
+
+TEST(ProtocolVaneExtension, DoesNotStampTheCommandOriginMarker) {
+    // Payload 15 is the origin marker of the subtype 0x01 SET only
+    // (analysis/aircon_model_feature_reference.md). The 0x33 frame has no such
+    // field and the unit acknowledges it without one, as the 2026-10-13
+    // captures on both families show. Locked down so it is not "fixed" later.
+    uint8_t packet[22] = {};
+    VaneExtensionRequest request{};
+    request.left_vane = 0x02;
+    ASSERT_TRUE(apply_vane_extension_request(packet, request));
+    EXPECT_EQ(packet[payload_offset(15)], 0x00);
+}

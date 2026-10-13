@@ -321,6 +321,28 @@ inline uint8_t select_room_temperature_byte(uint8_t legacy, uint8_t effective, b
 /// Persistent energy-saving flag written in payload 5.
 inline uint8_t encode_energy_saving(bool enabled) { return enabled ? 0x0a : 0x00; }
 
+/// Energy saving (the R-series HYBRID button, and the field A.I. Auto turns on
+/// for itself on the ZW family) is only available in cool, heat and auto. The
+/// operating manual excludes dry, air-clean/fan, the 10 C heat hold and the
+/// stopped state, and the official app's own availability rule agrees.
+///
+/// Verified on hardware 2026-10-13 (LDK, MSZ-ZW9025S): the byte-correct write
+/// `08 08 00 00 00 0A` was ignored in FAN_ONLY -- readback 0x02[13] stayed 0x00
+/// and the switch sprang back -- and latched in HEAT, giving 0x02[13] = 0x0A.
+/// So the unit silently drops the command rather than rejecting it, which is
+/// why this has to be gated before the write instead of after it.
+///
+/// `mode` is a MODE_MAP string; nullptr means we have not read a mode yet and
+/// is treated as allowed, so a missing readback never blocks the control.
+inline bool energy_saving_allowed_in_mode(const char* mode) {
+    if (mode == nullptr) {
+        return true;
+    }
+    return std::strcmp(mode, "HEAT") == 0 ||
+        std::strcmp(mode, "COOL") == 0 ||
+        std::strcmp(mode, "AUTO") == 0;
+}
+
 /// Clamp a dehumidification target the way the official client does: floor to
 /// the 10 % step first, then clamp into 40..70 %. Its UI labels 60/50/40 as
 /// 弱 / 標準 / 強 on models that do not display a percentage.

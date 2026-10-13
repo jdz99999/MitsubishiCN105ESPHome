@@ -965,7 +965,11 @@ void CN105Climate::updateExtraSelectComponents(heatpumpSettings& settings) {
             this->vertical_vane_select_->publish_state(settings.vane);
         }
     }
-    if (this->left_vane_select_ != nullptr) {
+    // The left vane travels with the run states, so a settings-only update (a
+    // right-vane or mode change, say) carries no left-vane value. Skip it rather
+    // than ask hasChanged() about a null and log "No value in hasChanged()" on
+    // every such write.
+    if (this->left_vane_select_ != nullptr && settings.left_vane != nullptr) {
         if (this->hasChanged(this->left_vane_select_->current_option(), settings.left_vane, "select left vane")) {
             ESP_LOGI(TAG, "left vane setting (extra select component) changed");
             this->left_vane_select_->publish_state(settings.left_vane);

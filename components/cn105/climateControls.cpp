@@ -742,6 +742,29 @@ void CN105Climate::setVaneSetting(const char* setting) {
     //
     // Callers that want a specific left position (controlSwing does) call
     // queueLeftVane() afterwards to override this.
+    //
+    // Never re-assert over a left-vane value that is already queued. That value
+    // is the user's, it is newer than the readback this function would use, and
+    // the 0x33 frame carrying it goes out after the 0x01 anyway -- so there is
+    // nothing to protect and everything to lose.
+    //
+    // This is what made "set the left vane, then change the right vane" snap the
+    // left vane back to where it had been. The two guards conspire:
+    // publishStateToHA() only refreshes currentSettings.left_vane while
+    // wantedRunStates.left_vane is null, precisely so a pending user change is
+    // not overwritten by a stale readback -- which means that while a left-vane
+    // write is in flight, currentSettings.left_vane is deliberately STALE.
+    // Re-asserting it then writes the old position over the new one.
+    //
+    // Reproduced on office 2026-10-14: left on the flat position, select
+    // double-up, change the right vane 200 ms later, and the left vane lands
+    // back on the flat position instead of double-up.
+    if (this->wantedRunStates.left_vane != nullptr) {
+        ESP_LOGD("EVT", "left vane %s already queued; not re-asserting over it",
+            this->wantedRunStates.left_vane);
+        return;
+    }
+
     ESP_LOGD("EVT", "re-asserting left vane %s after a 0x01 vane write",
         this->currentSettings.left_vane ? this->currentSettings.left_vane : "(unknown)");
     this->queueLeftVane(this->currentSettings.left_vane);

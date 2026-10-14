@@ -64,11 +64,11 @@ void CN105Climate::set_left_vane_select(
         ESP_LOGD("EVT", "left_vane.control() -> requested left vane setting: %s", setting);
 
         // The left vane is a subtype 0x33 field, so it travels with the run
-        // states rather than the main 0x01 SET.
-        this->setLeftVaneSetting(setting);
-        this->wantedRunStates.hasChanged = true;
-        this->wantedRunStates.hasBeenSent = false;
-        this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+        // states rather than the main 0x01 SET. queueLeftVane() also records the
+        // commanded position as the current one, which is what stops a
+        // right-vane change moments later from re-asserting the old position
+        // over this one -- see the comment there.
+        this->queueLeftVane(setting);
         });
 
 }

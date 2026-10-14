@@ -715,6 +715,30 @@ void CN105Climate::queueLeftVane(const char* setting) {
         return;
     }
     this->setLeftVaneSetting(setting);
+
+    // Adopt the commanded position as the unit's position immediately.
+    //
+    // Without this, a left-vane command is forgotten the moment its 0x33 frame
+    // goes out: the slot is cleared on send, the confirming readback is a poll
+    // interval away, and publishStateToHA() deliberately will not refresh
+    // currentSettings.left_vane while a write is pending. So for several
+    // seconds after a successful command, currentSettings.left_vane still holds
+    // the PREVIOUS position -- and anything that re-asserts in that window
+    // re-sends the old position and undoes the command.
+    //
+    // That is the window a user hits by changing the left vane and then the
+    // right vane a moment later, which is how this was finally reproduced:
+    //
+    //   t+0.0  left -> double-up   0x33 sent, slot cleared
+    //   t+0.2  right -> down-down  0x01 sent; re-assert reads the STALE flat
+    //                              position and sends 0x33 with it
+    //   t+6    readback: left is back on the flat position
+    //
+    // Being optimistic here is safe: if the unit ignores the command, the next
+    // readback overwrites this with the truth, because by then the slot is null
+    // again and the guard in publishStateToHA() lets it through.
+    this->currentSettings.left_vane = this->wantedRunStates.left_vane;
+
     this->wantedRunStates.hasChanged = true;
     this->wantedRunStates.hasBeenSent = false;
     this->wantedRunStates.lastChange = CUSTOM_MILLIS;

@@ -343,6 +343,30 @@ inline bool energy_saving_allowed_in_mode(const char* mode) {
         std::strcmp(mode, "AUTO") == 0;
 }
 
+/// Does this airflow-control selection hand the horizontal vane over to the
+/// Move Eye?
+///
+/// The sensor-directed modes (avoid, direct, even) aim the vane themselves, and
+/// the protocol expresses that by writing the wide-vane sentinel -- the last
+/// WIDEVANE_MAP entry, byte 0x00 with the high bit set. NORMAL is the "off"
+/// entry and must not write it.
+///
+/// Verified on hardware 2026-10-14 (office, MSZ-R2225) by the bug this fixes:
+/// with the horizontal vane holding "|" across several polls, selecting
+/// NORMAL -- the value the control already had -- flipped the readback to
+/// AIRFLOW CONTROL within 300 ms, and it stayed there. So touching the control
+/// at all used to destroy the vane position, and turning sensor airflow *off*
+/// was the one case where that is plainly wrong.
+///
+/// `setting` is an AIRFLOW_CONTROL_MAP string. nullptr is treated as "no", so a
+/// missing value never silently commandeers the vane.
+inline bool airflow_control_takes_wide_vane(const char* setting) {
+    if (setting == nullptr) {
+        return false;
+    }
+    return std::strcmp(setting, "NORMAL") != 0;
+}
+
 /// Clamp a dehumidification target the way the official client does: floor to
 /// the 10 % step first, then clamp into 40..70 %. Its UI labels 60/50/40 as
 /// 弱 / 標準 / 強 on models that do not display a percentage.

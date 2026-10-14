@@ -134,10 +134,20 @@ void CN105Climate::set_airflow_control_select(
     this->airflow_control_select_->setCallbackFunction([this](const char* setting) {
         ESP_LOGD("EVT", "airFlow -> Request for change of airflow control setting: %s", setting);
 
-        this->setWideVaneSetting(WIDEVANE_MAP[10]);
-        this->wantedSettings.hasChanged = true;
-        this->wantedSettings.hasBeenSent = false;
-        this->wantedSettings.lastChange = CUSTOM_MILLIS;
+        // Only hand the horizontal vane to the Move Eye when a sensor-directed
+        // mode was actually chosen. This used to fire for every selection,
+        // NORMAL included, so turning sensor airflow *off* destroyed whatever
+        // position the vane was holding -- see
+        // cn105_protocol::airflow_control_takes_wide_vane() for the hardware
+        // evidence.
+        if (cn105_protocol::airflow_control_takes_wide_vane(setting)) {
+            this->setWideVaneSetting(WIDEVANE_MAP[WIDEVANE_LEN - 1]);
+            this->wantedSettings.hasChanged = true;
+            this->wantedSettings.hasBeenSent = false;
+            this->wantedSettings.lastChange = CUSTOM_MILLIS;
+        } else {
+            ESP_LOGD("EVT", "airFlow -> %s selected, leaving the horizontal vane alone", setting);
+        }
 
         this->setAirflowControlSetting(setting);
         this->wantedRunStates.hasChanged = true;

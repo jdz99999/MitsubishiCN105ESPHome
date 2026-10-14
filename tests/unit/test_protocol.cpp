@@ -801,3 +801,48 @@ TEST(ProtocolVaneExtension, DoesNotStampTheCommandOriginMarker) {
     ASSERT_TRUE(apply_vane_extension_request(packet, request));
     EXPECT_EQ(packet[payload_offset(15)], 0x00);
 }
+
+// ════════════════════════════════════════════════════════════════
+// airflow_control_takes_wide_vane() — the sensor-directed modes take the
+// horizontal vane; NORMAL must not. See the hardware evidence on the function.
+// ════════════════════════════════════════════════════════════════
+
+TEST(ProtocolAirflowControl, SensorDirectedModesTakeTheWideVane) {
+    EXPECT_TRUE(airflow_control_takes_wide_vane("INDIRECT"));
+    EXPECT_TRUE(airflow_control_takes_wide_vane("DIRECT"));
+    EXPECT_TRUE(airflow_control_takes_wide_vane("MURANASHI"));
+}
+
+TEST(ProtocolAirflowControl, NormalLeavesTheWideVaneAlone) {
+    // The whole point of the fix: selecting "off" must not pin the vane to the
+    // AIRFLOW CONTROL sentinel and destroy the position the user set.
+    EXPECT_FALSE(airflow_control_takes_wide_vane("NORMAL"));
+}
+
+TEST(ProtocolAirflowControl, NullSettingLeavesTheWideVaneAlone) {
+    // Failing closed: an unknown selection must not commandeer the vane.
+    EXPECT_FALSE(airflow_control_takes_wide_vane(nullptr));
+}
+
+TEST(ProtocolAirflowControl, MapEntryZeroIsTheOffEntryThisFunctionNames) {
+    // The helper compares against the literal "NORMAL" so it can live in the
+    // dependency-free protocol header. That makes a rename of
+    // AIRFLOW_CONTROL_MAP[0] able to break the gate silently -- as nearly
+    // happened once, when entry 0 was called EVEN. Fail here instead.
+    EXPECT_STREQ(AIRFLOW_CONTROL_MAP[0], "NORMAL");
+    EXPECT_FALSE(airflow_control_takes_wide_vane(AIRFLOW_CONTROL_MAP[0]));
+    for (int i = 1; i < 4; ++i) {
+        EXPECT_TRUE(airflow_control_takes_wide_vane(AIRFLOW_CONTROL_MAP[i]))
+            << "AIRFLOW_CONTROL_MAP[" << i << "] = " << AIRFLOW_CONTROL_MAP[i];
+    }
+}
+
+TEST(ProtocolAirflowControl, SentinelIsTheLastWideVaneEntry) {
+    // The call site writes WIDEVANE_MAP[WIDEVANE_LEN - 1]; the readback in
+    // hp_writings.cpp compares against the same entry. Pin both to the byte the
+    // unit actually reports, 0x00, so an insertion at the end of the map cannot
+    // quietly repoint the sentinel.
+    EXPECT_STREQ(WIDEVANE_MAP[WIDEVANE_LEN - 1], "AIRFLOW CONTROL");
+    EXPECT_EQ(WIDEVANE[WIDEVANE_LEN - 1], 0x00);
+    EXPECT_EQ(encode_wide_vane(WIDEVANE[WIDEVANE_LEN - 1], false, true), 0x80);
+}

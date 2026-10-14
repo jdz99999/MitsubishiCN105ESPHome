@@ -374,10 +374,15 @@ void CN105Climate::set_target_humidity_number(FunctionsNumber* Number) {
         if (!mode_allows) {
             ESP_LOGW(TAG, "Target humidity is a DRY-mode setting on this model; ignoring request (current mode %s)",
                 mode ? mode : "unknown");
-            if (this->currentRunStates.target_humidity > -1) {
-                this->target_humidity_number_->publish_state(
-                    static_cast<float>(this->currentRunStates.target_humidity));
-            }
+            // Republish whatever the unit is actually holding, so the number
+            // never sits there showing a value we refused to send. Before the
+            // first 0x02 readback there is nothing to republish; fall back to
+            // the range minimum, because leaving the user's value on screen
+            // would claim a write that never happened.
+            this->target_humidity_number_->publish_state(
+                static_cast<float>(this->currentRunStates.target_humidity > -1
+                    ? static_cast<uint8_t>(this->currentRunStates.target_humidity)
+                    : cn105_protocol::clamp_target_humidity(0)));
             return;
         }
 

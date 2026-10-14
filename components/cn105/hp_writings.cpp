@@ -352,41 +352,35 @@ void CN105Climate::publishWantedSettingsStateToHA() {
 }
 
 void CN105Climate::publishWantedRunStatesStateToHA() {
-    if (this->wantedRunStates.airflow_control != nullptr) {
-        if (this->wantedRunStates.airflow_control == nullptr) {
-            this->wantedRunStates.airflow_control = this->currentRunStates.airflow_control;
-        }
+    // Each block needs its own null guard. A wanted value can only be set from
+    // the matching entity's own callback, so in practice the entity exists
+    // whenever its field is set -- but that is an invariant held by callers,
+    // not by this function, and a dereference here is a reboot rather than a
+    // warning. The guards below cost nothing and make the invariant local.
+    //
+    // (The `if (x != nullptr) { if (x == nullptr) { ... } }` shape this
+    // replaced could never take its inner branch, so the fallback to
+    // currentRunStates it contained never ran either.)
+    if (this->wantedRunStates.airflow_control != nullptr && this->airflow_control_select_ != nullptr) {
         if (this->hasChanged(this->airflow_control_select_->current_option(), this->wantedRunStates.airflow_control, "select airflow control")) {
             ESP_LOGI(TAG, "airflow control setting changed");
             this->airflow_control_select_->publish_state(wantedRunStates.airflow_control);
         }
     }
-    if (this->wantedRunStates.air_purifier > -1) {
-        if (this->wantedRunStates.air_purifier == -1) {
-            this->wantedRunStates.air_purifier = this->currentRunStates.air_purifier;
-        }
-        if (this->air_purifier_switch_->state != this->wantedRunStates.air_purifier) {
-            ESP_LOGI(TAG, "air purifier setting changed");
-            this->air_purifier_switch_->publish_state(wantedRunStates.air_purifier);
-        }
+    if (this->wantedRunStates.air_purifier > -1 && this->air_purifier_switch_ != nullptr &&
+        this->air_purifier_switch_->state != this->wantedRunStates.air_purifier) {
+        ESP_LOGI(TAG, "air purifier setting changed");
+        this->air_purifier_switch_->publish_state(wantedRunStates.air_purifier);
     }
-    if (this->wantedRunStates.night_mode > -1) {
-        if (this->wantedRunStates.night_mode == -1) {
-            this->wantedRunStates.night_mode = this->currentRunStates.night_mode;
-        }
-        if (this->night_mode_switch_->state != this->wantedRunStates.night_mode) {
-            ESP_LOGI(TAG, "night mode setting changed");
-            this->night_mode_switch_->publish_state(wantedRunStates.night_mode);
-        }
+    if (this->wantedRunStates.night_mode > -1 && this->night_mode_switch_ != nullptr &&
+        this->night_mode_switch_->state != this->wantedRunStates.night_mode) {
+        ESP_LOGI(TAG, "night mode setting changed");
+        this->night_mode_switch_->publish_state(wantedRunStates.night_mode);
     }
-    if (this->wantedRunStates.circulator > -1) {
-        if (this->wantedRunStates.circulator == -1) {
-            this->wantedRunStates.circulator = this->currentRunStates.circulator;
-        }
-        if (this->circulator_switch_->state != this->wantedRunStates.circulator) {
-            ESP_LOGI(TAG, "circulator setting changed");
-            this->circulator_switch_->publish_state(wantedRunStates.circulator);
-        }
+    if (this->wantedRunStates.circulator > -1 && this->circulator_switch_ != nullptr &&
+        this->circulator_switch_->state != this->wantedRunStates.circulator) {
+        ESP_LOGI(TAG, "circulator setting changed");
+        this->circulator_switch_->publish_state(wantedRunStates.circulator);
     }
     if (this->wantedRunStates.left_vane != nullptr && this->left_vane_select_ != nullptr) {
         if (this->hasChanged(this->left_vane_select_->current_option(), this->wantedRunStates.left_vane, "select left vane")) {

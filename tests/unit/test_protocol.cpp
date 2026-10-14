@@ -770,18 +770,25 @@ TEST(ProtocolEnergySaving, EveryModeMapEntryIsClassified) {
 // The left vane cannot be held through a right-vane change on AUTO
 // ════════════════════════════════════════════════════════════════
 
-TEST(ProtocolVaneExtension, AutoLeftVaneEncodesAsZeroSoReassertIsANoOp) {
-    // LEFT_VANE_MAP[0] is AUTO and LEFT_VANE[0] is 0x00. Re-asserting it
-    // produces `33 02 00 00 00`, which hands the flap back to the unit --
-    // exactly what the firmware must now refuse to send. Pinned positions
-    // encode to a non-zero byte and are worth re-asserting.
+TEST(ProtocolVaneExtension, AutoLeftVaneIsARealCommandNotANoOp) {
+    // LEFT_VANE_MAP[0] is AUTO and LEFT_VANE[0] is 0x00, so re-asserting it
+    // produces `33 02 00 00 00`. This test used to be named
+    // ...SoReassertIsANoOp and asserted the opposite conclusion: that the zero
+    // byte meant the frame could not do anything, so the firmware should refuse
+    // to send it. Hardware disproved that on office 2026-10-14 -- this exact
+    // frame moves the readback 0x02[15] to 0x00 and is the only way to put the
+    // left vane back ON auto after a right-vane write has dragged it off.
+    //
+    // What makes it a real command is the control bit, not the payload byte:
+    // payload 1 carries 0x02 whether the position is zero or not, which is what
+    // the assertions below pin down.
     uint8_t packet[22] = {};
     VaneExtensionRequest autoRequest{};
     autoRequest.left_vane = 0x00;  // LEFT_VANE[0], AUTO
     ASSERT_TRUE(apply_vane_extension_request(packet, autoRequest));
     EXPECT_EQ(packet[payload_offset(0)], 0x33);
     EXPECT_EQ(packet[payload_offset(1)], 0x02);
-    EXPECT_EQ(packet[payload_offset(4)], 0x00) << "AUTO carries no position";
+    EXPECT_EQ(packet[payload_offset(4)], 0x00) << "AUTO is position byte 0x00";
 
     uint8_t pinned[22] = {};
     VaneExtensionRequest pinnedRequest{};

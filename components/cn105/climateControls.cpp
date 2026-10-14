@@ -298,6 +298,14 @@ void CN105Climate::controlSwing() {
         // This only sets default position if swing was previously enabled
         if (vane_is_swing) {
             this->setVaneSetting("AUTO");
+            // The climate card's swing control is a UNIT-level control, so it
+            // drives both vertical vanes. The per-side selects are what give
+            // independent control -- and the unit really does support that: in
+            // analysis/ldk-capture.log the remote produced right = 0x07 (swing)
+            // with the left on a fixed 0x01..0x05 across 21 polled frames, and
+            // right = 0x01 with left = 0x07 once. So independent swing is real;
+            // it is just not what a single checkbox can express.
+            this->queueLeftVane("AUTO");
         }
         if (wideVaneSupported && wide_is_swing) {
             this->setWideVaneSetting("|");
@@ -307,6 +315,7 @@ void CN105Climate::controlSwing() {
     case climate::CLIMATE_SWING_VERTICAL:
         // Turn on vertical swing.
         this->setVaneSetting("SWING");
+        this->queueLeftVane("SWING");
         // If horizontal swing was also on AND is supported, turn it off to a default static position.
         // This correctly handles switching from BOTH to VERTICAL, while preserving any user's
         // static horizontal setting if it wasn't swinging.
@@ -321,6 +330,7 @@ void CN105Climate::controlSwing() {
         // static vertical setting if it wasn't swinging.
         if (vane_is_swing) {
             this->setVaneSetting("AUTO");
+            this->queueLeftVane("AUTO");
         }
         // Turn on horizontal swing, but only if the unit supports it.
         if (wideVaneSupported) {
@@ -329,8 +339,9 @@ void CN105Climate::controlSwing() {
         break;
 
     case climate::CLIMATE_SWING_BOTH:
-        // Turn on vertical swing.
+        // Turn on vertical swing, both sides.
         this->setVaneSetting("SWING");
+        this->queueLeftVane("SWING");
         // Turn on horizontal swing, but only if the unit supports it.
         if (wideVaneSupported) {
             this->setWideVaneSetting("SWING");
@@ -695,6 +706,20 @@ void CN105Climate::setFanSpeed(const char* setting) {
     }
 }
 
+/// Queue a left-vane position and arm the subtype 0x33 write that carries it.
+/// setLeftVaneSetting() only stores the value; the flags are what make a frame
+/// go out. No-op when the unit has no left vane configured, so a single-vane
+/// unit never queues a run-state write it cannot use.
+void CN105Climate::queueLeftVane(const char* setting) {
+    if (this->left_vane_select_ == nullptr || setting == nullptr) {
+        return;
+    }
+    this->setLeftVaneSetting(setting);
+    this->wantedRunStates.hasChanged = true;
+    this->wantedRunStates.hasBeenSent = false;
+    this->wantedRunStates.lastChange = CUSTOM_MILLIS;
+}
+
 void CN105Climate::setVaneSetting(const char* setting) {
     int index = lookupByteMapIndex(VANE_MAP, 7, setting);
     if (index > -1) {
@@ -702,6 +727,24 @@ void CN105Climate::setVaneSetting(const char* setting) {
     } else {
         wantedSettings.vane = VANE_MAP[0];
     }
+
+    // On a split-vane unit the subtype 0x01 up/down field is the legacy
+    // SINGLE-vane control: writing it moves both flaps, leaving the left one
+    // sitting on the right vane's position. So every write of it has to be
+    // followed by a subtype 0x33 frame restoring the left vane.
+    //
+    // This belongs here, next to the write, and not in the right-vane select's
+    // callback -- which is where it was first put, and why the bug survived two
+    // attempts at it. There are five callers: the select, and four inside
+    // controlSwing(), which is what Home Assistant's climate-card swing control
+    // drives. Only the select was covered, so swinging from the climate card
+    // still dragged the left vane with no re-assert at all.
+    //
+    // Callers that want a specific left position (controlSwing does) call
+    // queueLeftVane() afterwards to override this.
+    ESP_LOGD("EVT", "re-asserting left vane %s after a 0x01 vane write",
+        this->currentSettings.left_vane ? this->currentSettings.left_vane : "(unknown)");
+    this->queueLeftVane(this->currentSettings.left_vane);
 }
 
 void CN105Climate::setLeftVaneSetting(const char* setting) {

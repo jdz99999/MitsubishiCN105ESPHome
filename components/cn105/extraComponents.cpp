@@ -32,37 +32,20 @@ void CN105Climate::set_vertical_vane_select(
         this->wantedSettings.hasBeenSent = false;
         this->wantedSettings.lastChange = CUSTOM_MILLIS;
 
-        // On split-vane units the subtype 0x01 up/down field is the legacy single-vane
-        // control and moves both flaps, so a right-vane change drags the left one with
-        // it. The official app avoids that by sending the subtype 0x33 left-vane frame
-        // in the same batch, re-asserting the left position. Do the same: queue the
-        // current left vane so it is restored right after the 0x01 write.
+        // The left-vane re-assert that has to follow every 0x01 vane write now
+        // lives inside setVaneSetting() above, because this select is not the
+        // only caller -- controlSwing() is too. See the comment there.
         //
-        // AUTO is re-asserted too. An earlier version skipped it, reasoning that
-        // LEFT_VANE_MAP[0] is a mode rather than a position, so `33 02 00 00 00`
-        // could not hold anything and a warning was more honest than a no-op frame.
-        // That was wrong, and the hardware says so plainly. On office 2026-10-14,
-        // in FAN with the left vane on AUTO:
+        // AUTO is re-asserted along with everything else. An earlier version
+        // skipped it, reasoning that LEFT_VANE_MAP[0] is a mode rather than a
+        // position so `33 02 00 00 00` could hold nothing. Hardware disproved
+        // that: the frame moves readback 0x02[15] to 0x00 and is the only way to
+        // put the left vane back ON auto.
         //
-        //   write  33 02 00 00 00                        -> readback 0x02[15] = 0x00, AUTO
-        //   write  01 10 .. 02 .. 41  (right vane only)  -> readback 0x02[15] = 0x02
-        //
-        // So the frame is a real command that puts the left vane back ON auto, and
-        // skipping it is exactly what left the left vane stuck on the right vane's
-        // position. Re-assert whatever the left vane was, AUTO included.
-        //
-        // The flap may still twitch: the 0x01 write lands about 300 ms before the
-        // 0x33, so the unit starts moving the left flap and is then told to put it
-        // back. That is inherent -- the right vane has no write path that leaves the
-        // left one alone -- and the settled state is correct, which is what matters.
-        if (this->left_vane_select_ != nullptr && this->currentSettings.left_vane != nullptr) {
-            ESP_LOGD("EVT", "re-asserting left vane %s after a right-vane change",
-                this->currentSettings.left_vane);
-            this->wantedRunStates.left_vane = this->currentSettings.left_vane;
-            this->wantedRunStates.hasChanged = true;
-            this->wantedRunStates.hasBeenSent = false;
-            this->wantedRunStates.lastChange = CUSTOM_MILLIS;
-        }
+        // The flap may still twitch: the 0x01 write lands about 300 ms before
+        // the 0x33, so the unit starts moving the left flap and is then told to
+        // put it back. Inherent -- the right vane has no write path that leaves
+        // the left one alone -- and the settled state is correct.
         });
 
 }

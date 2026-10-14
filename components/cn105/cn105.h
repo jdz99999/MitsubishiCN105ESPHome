@@ -472,6 +472,7 @@ namespace esphome {
         void setPowerSetting(const char* setting);
         void setVaneSetting(const char* setting);
         void setLeftVaneSetting(const char* setting);
+        void queueLeftVane(const char* setting);
         void setWideVaneSetting(const char* setting);
         void setAirflowControlSetting(const char* setting);
         void setFanSpeed(const char* setting);

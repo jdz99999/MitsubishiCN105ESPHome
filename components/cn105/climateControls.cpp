@@ -789,8 +789,18 @@ void CN105Climate::setVaneSetting(const char* setting) {
         return;
     }
 
+    if (this->currentSettings.left_vane == nullptr) {
+        // Nothing to re-assert, so the left vane is about to follow the right
+        // one. Warn rather than log at debug: this is a real failure of the
+        // protection, not a routine skip, and it should never happen once a
+        // single 0x02 readback has decoded.
+        ESP_LOGW(TAG, "No known left vane position to re-assert; the left vane may follow "
+            "the right one on this write");
+        return;
+    }
+
     ESP_LOGD("EVT", "re-asserting left vane %s after a 0x01 vane write",
-        this->currentSettings.left_vane ? this->currentSettings.left_vane : "(unknown)");
+        this->currentSettings.left_vane);
     this->queueLeftVane(this->currentSettings.left_vane);
 }
 

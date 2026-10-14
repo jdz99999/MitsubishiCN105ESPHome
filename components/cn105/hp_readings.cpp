@@ -840,7 +840,16 @@ void CN105Climate::publishStateToHA(heatpumpSettings& settings) {
         checkVaneSettings(settings);
     }
 
-    if (this->wantedRunStates.left_vane == nullptr) { // to prevent overwriting a user demand
+    // Never let a null overwrite a known left-vane position. An unrecognised
+    // 0x02[15] byte makes the decoder fall back to currentSettings.left_vane,
+    // which is null before the first successful decode -- and once this field
+    // is null it stays null, because that same fallback then has nothing to
+    // copy. A null here is not harmless: it is what setVaneSetting()'s
+    // re-assert reads, and with nothing to re-assert the left vane is left
+    // sitting wherever the 0x01 write dragged it. Observed on office
+    // 2026-10-14 as `re-asserting left vane (unknown)` immediately before the
+    // left vane followed the right one.
+    if (this->wantedRunStates.left_vane == nullptr && settings.left_vane != nullptr) {
         currentSettings.left_vane = settings.left_vane;
     }
 
